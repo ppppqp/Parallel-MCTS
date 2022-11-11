@@ -18,7 +18,7 @@ public:
     double score; // number of wins
     double UCB;    // UCB value of this node
     double n; // number of simualtions
-
+    bool expandable;
     vector<Node *> children;
     Node* parent;
     vector<Action> path;
@@ -29,10 +29,6 @@ public:
     void add_child(Node* child){
         children.push_back(child);
         child->parent = this;
-    }
-    bool expandable(){
-        // TODO
-        return true;
     }
     // constructor
     Node(vector<Action> _path, Action action):score(0), UCB(0), n(0), parent(nullptr), path(_path){

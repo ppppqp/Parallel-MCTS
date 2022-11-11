@@ -22,7 +22,15 @@ Action MCTS::run(){
         traverse(root, init_path, b);
         step += 1;
     }
-    Action bestMove(0,0,ROLE::WHITE);
+    Action bestMove(0,0);
+    double maxv = 0;
+    for(auto child : root->children){
+        double v = child->score / (child->n + EPSILON);
+        if(v >= maxv){
+            maxv = v;
+            bestMove = child->path.back();
+        }
+    }
     // get the best move and return
     return bestMove;
 }
@@ -37,78 +45,37 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
         Node* node = S.top();
         Node *child = nullptr;
         
-        if(!node->expandable()){
+        if(!node->expandable){
             // selection
-            double maxn = 0;   
-            for(auto c : node->children){
-                double UCB = c->UCB;
-                if(UCB > maxn){
-                    child = c;
-                    maxn = UCB;
-                }
-            }
-            S.push(child);
+
+            S.push(select(root));
         } else{
+            node->expandable = false;
             expand(node);
-            backprop(node, simulate(node));
+            for(auto child : node->children){
+                backprop(node, simulate(child));
+            }
         }
     }
+}
 
-
-
-    // double maxn = 0;
-    // for(auto c: root->children){
-    //     // SELECT PHASE
-    //     double UCB = c->UCB;
-    //     if(UCB > maxn){
-    //         child = c;
-    //         maxn = UCB;
-    //     }
-    // }
-    // path.push_back(child->action);
-    // b.update(child->action);
-    // if(b.get_actions(ROLE::WHITE).empty()){
-    //     // this is a terminal state
-    //     return b.get_result();
-    // }
-
-    // if(!child->children.empty()){
-    //     // this child is not a leaf
-    //     // traverse this child
-    //     // BACK_PROP the score back to the root
-    //     Result r = MCTS::traverse(child, path, b);
-    //     if(r == Result::WIN) child->score += 1;
-    //     child->n += 1;
-    //     child->update_UCB();
-    // }
-    // // this child is not a leaf
-    // Result r;
-    // if(child->n == 0){
-    //     // this child has not been investigated before
-    //     // SIMULATE PHASE
-    //     r = MCTS::simulate(child, path);
-    //     if(r == Result::WIN) child->score += 1;
-    //     child->n += 1;
-    //     return r;
-
-    // } else{
-    //     // this child has been investigated
-    //     for(auto action : b.get_actions(ROLE::BLACK)){
-    //         Node *new_node = new Node(action);
-    //         child->children.push_back(new_node);
-    //         r = MCTS::simulate(new_node, path);
-    //         if(r == Result::WIN) child->score += 1;
-    //         child->n += 1;
-    //         return r;
-    //     }
-    // }
-    // return r;
+Node* MCTS::select(Node* node){
+    double maxn = 0;
+    Node* child = nullptr;   
+    for(auto c : node->children){
+        double UCB = c->UCB;
+        if(UCB > maxn){
+            child = c;
+            maxn = UCB;
+        }
+    }
+    return child;
 }
 
 void MCTS::expand(Node * node){
     Board b;
     b.batch_update(node->path);
-    vector<Action> actions = b.get_actions(ROLE::BLACK);
+    vector<Action> actions = b.get_actions();
     for(auto action : actions){
         node->add_child(new Node(node->path, action));
     }
@@ -127,7 +94,6 @@ void MCTS::backprop(Node *node, Result result){
 
 Result MCTS::simulate(Node *root){
     Board b;
-    ROLE role = ROLE::BLACK;
 
     for(auto action:root->path){
         b.update(action);
@@ -135,16 +101,15 @@ Result MCTS::simulate(Node *root){
     int step = 0;
     while(step < MAX_SIM_STEP){
         step++;
-        if(!rollout(b, role)){
+        if(!rollout(b)){
             // reach terminal state
             return b.get_result();
         }
-        role = (role == ROLE::BLACK) ? ROLE::WHITE : ROLE::BLACK;
     }
     return Result::DRAW;
 }
-bool MCTS::rollout(Board &b, ROLE role){
-    vector<Action> actions = b.get_actions(role);
+bool MCTS::rollout(Board &b){
+    vector<Action> actions = b.get_actions();
     if(actions.empty()) return false;
     shuffle(actions.begin(), actions.end(), std::default_random_engine(42));
     b.update(actions[0]);

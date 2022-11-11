@@ -9,16 +9,16 @@ int main(){
         int x;
         int y;
         cin >> y >> x;
-        Action input_action(y, x, ROLE::WHITE);
+        Action input_action(y, x);
         b.update(input_action);
         path.push_back(input_action);
-        if(b.check_end(ROLE::BLACK)){
+        if(b.check_end()){
             return 0;
         }
         MCTS mcts(path);
         Action action = mcts.run();
         b.update(action);
-        if(b.check_end(ROLE::WHITE)){
+        if(b.check_end()){
             return 0;
         }
         path.push_back(action);

@@ -14,8 +14,7 @@ class Action{
 public:
     int x;
     int y;
-    ROLE role;
-    Action(int _y, int _x, ROLE _role):x(_x), y(_y), role(_role){};
+    Action(int _y, int _x):x(_x), y(_y){};
 };
 
 
@@ -39,7 +38,7 @@ public:
     State s[9][9];
     ROLE current_role;
     int remain;
-    Board():current_role(ROLE::BLACK){
+    Board():current_role(ROLE::WHITE){
         for(auto i = 0; i < 9; i++){
             for(auto j = 0; j < 9; j++){
                 s[i][j] = State::NONE;
@@ -48,21 +47,21 @@ public:
         remain = 81;
     };
     void update(Action action){
-        State state = (action.role == ROLE::BLACK) ? State::BLACK : State::WHITE;
-        s[action.y][action.x] = state;
+        s[action.y][action.x] = (current_role == ROLE::BLACK) ? State::BLACK : State::WHITE;
         remain --;
+        current_role = (current_role == ROLE::BLACK) ? ROLE::WHITE : ROLE::BLACK;
     }; // TODO
     void batch_update(vector<Action>& path){
         for(auto action : path ) update(action);
     }
-    vector<Action> get_actions(ROLE role){
+    vector<Action> get_actions(){
         return vector<Action>();
     }; // TODO
     Result get_result(){
         return Result::WIN;
     }  // TODO
-    bool check_end(ROLE role){
-        if(get_actions(role).empty()){
+    bool check_end(){
+        if(get_actions().empty()){
             Result r = get_result();
             if(r == Result::WIN) cout << "WIN!" << endl;
             if(r == Result::LOSE) cout << "LOSE!" << endl;

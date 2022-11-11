@@ -10,7 +10,7 @@ public:
     vector<Action> init_path;
     Board init_board;
     MCTS(vector<Action>&path):init_path(path){
-
+        
     };
     MCTS(Board b): init_board(b){
 
@@ -18,9 +18,10 @@ public:
     ~MCTS(){};
     Action run(); // get an optimal action.
     Result simulate(Node *root); // simulate a node
+    Node* select(Node* root);
     void expand(Node* node);
     void backprop(Node* node, Result result);
-    bool rollout(Board &b, ROLE role); // given a board and role, randomly simulate one step
+    bool rollout(Board &b); // given a board and role, randomly simulate one step
     void traverse(Node *root, vector<Action> &path, Board& board); // traverse the tree to find a node to simulate
 };
 
