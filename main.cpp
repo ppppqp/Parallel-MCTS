@@ -18,6 +18,7 @@ int main(){
         MCTS mcts(path);
         Action action = mcts.run();
         b.update(action);
+        cout << action.y << action.x << endl;
         if(b.check_end()){
             return 0;
         }

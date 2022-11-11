@@ -10,12 +10,14 @@ public:
     vector<Action> init_path;
     Board init_board;
     MCTS(vector<Action>&path):init_path(path){
-        
+        root = new Node(path);
     };
     MCTS(Board b): init_board(b){
 
     };
-    ~MCTS(){};
+    ~MCTS(){
+        delete root;
+    };
     Action run(); // get an optimal action.
     Result simulate(Node *root); // simulate a node
     Node* select(Node* root);

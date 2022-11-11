@@ -55,7 +55,15 @@ public:
         for(auto action : path ) update(action);
     }
     vector<Action> get_actions(){
-        return vector<Action>();
+        vector<Action> ret;
+        for(int i = 0; i < 9; i++){
+            for(int j = 0; j < 9; j++){
+                if(s[i][j] == State::NONE){
+                    ret.push_back(Action(i,j));
+                }
+            }
+        }
+        return ret;
     }; // TODO
     Result get_result(){
         return Result::WIN;

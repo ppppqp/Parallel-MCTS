@@ -13,12 +13,14 @@ const int MAX_EXPAND_STEP = 100;
 // }
 Action MCTS::run(){
     Board b;
+
     for(auto action:init_path){
         // initialize the board with history actions
         b.update(action);
     }
     int step = 0;
     while(step < MAX_EXPAND_STEP){
+        // cout << "traverse step:" << cstep << endl;
         traverse(root, init_path, b);
         step += 1;
     }
@@ -41,17 +43,25 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
 
     stack<Node*> S;
     S.push(root);
+    int iter_step = 0;
     while(!S.empty()){
+        // cout << iter_step << endl;
+        iter_step++;
         Node* node = S.top();
-        Node *child = nullptr;
         
+        S.pop();
+        Node *child = nullptr;
         if(!node->expandable){
-            // selection
-
-            S.push(select(root));
+            if(node->children.empty()){
+                // this is an terminal state
+                backprop(node, simulate(node));
+            } else{
+                S.push(select(node));
+            }
         } else{
             node->expandable = false;
             expand(node);
+
             for(auto child : node->children){
                 backprop(node, simulate(child));
             }
@@ -60,15 +70,19 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
 }
 
 Node* MCTS::select(Node* node){
-    double maxn = 0;
+    // cout << "enter select" << endl;
+    double maxn = -1;
     Node* child = nullptr;   
     for(auto c : node->children){
+        // cout << c << endl;
         double UCB = c->UCB;
         if(UCB > maxn){
             child = c;
             maxn = UCB;
         }
     }
+    // cout << child << endl;
+    // cout << "exit select" << endl;
     return child;
 }
 
@@ -76,12 +90,15 @@ void MCTS::expand(Node * node){
     Board b;
     b.batch_update(node->path);
     vector<Action> actions = b.get_actions();
+    // cout << "action size" << actions.size() << endl;
     for(auto action : actions){
+        // cout << action.y << action.x << endl;
         node->add_child(new Node(node->path, action));
     }
 }
 
 void MCTS::backprop(Node *node, Result result){
+        // cout << "enter backprop" << endl;
     bool shouldUpdate = false;
     while(node->parent){
         node = node->parent;
@@ -94,6 +111,7 @@ void MCTS::backprop(Node *node, Result result){
 
 Result MCTS::simulate(Node *root){
     Board b;
+    // cout << "enter simulate" << endl;
 
     for(auto action:root->path){
         b.update(action);
@@ -102,7 +120,6 @@ Result MCTS::simulate(Node *root){
     while(step < MAX_SIM_STEP){
         step++;
         if(!rollout(b)){
-            // reach terminal state
             return b.get_result();
         }
     }
