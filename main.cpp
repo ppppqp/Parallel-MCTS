@@ -5,20 +5,30 @@ int main(){
     Board b;
     vector<Action> path;
     while(true){
-        // b.print();
+        b.print();
         int x;
         int y;
-        cin >> y >> x;
-        Action input_action(y, x);
-        b.update(input_action);
-        path.push_back(input_action);
+
+        bool success = false;
+        while(!success){
+            try{
+                cout << "WHITE MOVE:";
+                cin >> y >> x;
+                Action input_action(y,x);
+                success = b.update(input_action);
+                path.push_back(input_action);
+            }catch(const char* s){
+                cout << s << endl;
+            }
+        }
+        b.print();
         if(b.check_end()){
             return 0;
         }
         MCTS mcts(path);
         Action action = mcts.run();
         b.update(action);
-        cout << action.y << action.x << endl;
+        cout << "BLACK MOVE:" <<  action.y << ' ' <<  action.x << endl;
         if(b.check_end()){
             return 0;
         }
