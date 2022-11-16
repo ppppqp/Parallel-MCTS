@@ -73,7 +73,7 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
             node->expandable = false;
             expand(node);
 
-            for(auto child : node->children){
+            for(auto child : node->children){   // NOTE: can be parallelized
                 backprop(node, simulate(child));
             }
         }
@@ -116,7 +116,7 @@ void MCTS::backprop(Node *node, Result result){
         node = node->parent;
         if(result == Result::WIN) node->score += 1;
         node->n += 1;
-        shouldUpdate = !shouldUpdate;
+        shouldUpdate = !shouldUpdate;   // NOTE: not used?
     }
 }
 
