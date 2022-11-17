@@ -34,9 +34,9 @@ int main(){
             }
         }
         b.print();
-        if(b.check_end()){
-            return 0;
-        }
+        // if(b.check_end()){
+        //     return 0;
+        // }
         MCTS mcts(path);
         Action action = mcts.run();
         b.update(action);
@@ -46,6 +46,8 @@ int main(){
             return 0;
         }
         path.push_back(action);
+
+        break;
     }
     return 0;
 }

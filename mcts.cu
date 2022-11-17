@@ -18,19 +18,35 @@ using namespace std;
 // act:
 //  15:8 = x
 //   7:0 = y
-__device__ uint16_t git_random_action(){
-    uint16_t actions[BOARD_W * BOARD_W];
-    uint16_t act = 0;
+// 0xFFFF: no act is available
+__device__ uint16_t git_random_action(uint16_t *actions, int *actions_len){
+    if (*actions_len == 0) return 0xFFFFU;
+    if (*actions_len == 1) {
+        *actions_len--;
+        return actions[0];
+    }
+    uint16_t act = 0xFFFFU;
 
+    curandState state;
+    curand_init((unsigned int)clock64(), threadIdx.y * blockDim.x + threadIdx.x, 0, &state);
 
+    int rand_idx = (int)(curand_uniform(&state) * actions_len);
+    rand_idx = rand_idx >= actions_len ? actions_len : rand_idx;
+
+    act = actions[rand_idx];
+    for (int i = rand_idx; i < actions_len-1; ++i) {
+        actions[i] = actions[i+1];
+    }
+
+    *actions_len--;
     return act;
 }
 
 
 
-__device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROLE role){
-    uint8_t myStone = (role == ROLE::BLACK) ? D_BLACK : D_WHITE;
-    uint8_t opponentStone = (role == ROLE::BLACK) ? D_WHITE : D_BLACK;
+__device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROLE *role){
+    uint8_t myStone = (*role == ROLE::BLACK) ? D_BLACK : D_WHITE;
+    uint8_t opponentStone = (*role == ROLE::BLACK) ? D_WHITE : D_BLACK;
 
     uint8_t y = 0;
     uint8_t x = 0;
@@ -142,8 +158,13 @@ __device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROL
             s_board[(act_y+1+i) * BOARD_W + act_x-1-i] = myStone;
         }
     }
+
+    // flip the role
+    *role = (*role == ROLE::WHITE) ? ROLE::BLACK : ROLE::WHITE;
 }
 
+
+// Every thread calculates one child
 // INPUTS:
 //  path[i][15:8]: act_x
 //  path[i][ 7:0]: act_y
@@ -169,10 +190,10 @@ __global__ simulate_kernel(uint16_t *path, int path_len,
     // every block shares an initial board
     __shared__ uint8_t s_board[BOARD_W * BOARD_W];
 
-    for (int s_x = 0; threadIdx.x + s_x < BOARD_W; s_x += blockDim.x) {
-        for (int s_y = 0; threadIdx.y + s_y < BOARD_W; s_y += blockDim.y) {
+    for (int s_y = 0; threadIdx.y + s_y < BOARD_W; s_y += blockDim.y) {
+        for (int s_x = 0; threadIdx.x + s_x < BOARD_W; s_x += blockDim.x) {
             int tsy = threadIdx.y + s_y;
-            int tsx = threadIdx.x + s_x
+            int tsx = threadIdx.x + s_x;
             s_board[tsy * BOARD_W + tsx] = D_NONE;
             if ((threadIdx.y + s_y == 3 && threadIdx.x + s_x == 3) || 
                 (threadIdx.y + s_y == 4 && threadIdx.x + s_x == 4)
@@ -184,7 +205,7 @@ __global__ simulate_kernel(uint16_t *path, int path_len,
     }
     __syncthreads();
 
-    ROLE current_role = ROLE::WHITE;
+    __shared__ ROLE current_role = ROLE::WHITE;
 
     // Let one thread do all the initialization of the board
     if (threadIdx.x == 0 && threadIdx.y == 0) {
@@ -192,32 +213,54 @@ __global__ simulate_kernel(uint16_t *path, int path_len,
             uint8_t act_x = (uint8_t)(path[i] >> 8) & 0xFFU;
             uint8_t act_y = (uint8_t)path[i] & 0xFFU;
 
-            update_board(s_board, act_x, act_y, current_role);
+            update_board(s_board, act_x, act_y, &current_role);
+        }
+    }
+    __syncthreads();
 
-            current_role = (current_role == ROLE::WHITE) ? ROLE::BLACK : ROLE::WHITE;   // flip the role
+    // every thread gets a private copy of the board
+    uint8_t p_board[BOARD_W * BOARD_W];
+    for (int y = 0; y < BOARD_W; ++y) {
+        for (int x = 0; x < BOARD_W; ++x) {
+            // TODO: remove bank conflicts
+            p_board[y * BOARD_W + x] = s_board[y * BOARD_W + x];
         }
     }
 
-    
-Board b;
-    // cout << "enter simulate" << endl;
-
-    for(auto action:root->path){
-        b.update(action);
+    // update the private board based on the child
+    // every thread also gets a private copy of the children
+    int actions_len = children_len - 1;
+    uint16_t actions[actions_len];
+    if (tid < children_len) {
+        uint8_t child_x = (uint8_t)(children[tid] >> 8) & 0xFFU;
+        uint8_t child_y = (uint8_t)(children[tid]) & 0xFFU;
+        update_board(p_board, child_x, child_y, &current_role);
+        for (int i = 0; i < children_len - 1; ++i) {
+            if (i >= tid) {
+                actions[i] = children[i + 1];
+            } else {
+                actions[i] = children[i];
+            }
+        }
     }
+    __syncthreads();
+
+    // every thread gets a new private ROLE variable
+    ROLE p_role = current_role;
+
     int step = 0;
     while(step < MAX_SIM_STEP){
         step++;
-        vector<Action> actions = b.get_actions();
-        if(actions.empty()) return false;
-        shuffle(actions.begin(), actions.end(), std::default_random_engine(42));
-        b.update(actions[0]);
-        return true;
-        if(!rollout(b)){
-            return b.get_result();
+        uint16_t rand_act = git_random_action(actions, &actions_len);
+        if (rand_act != 0xFFFFU) {
+            uint8_t rand_x = (uint8_t)(rand_act >> 8) & 0xFFU;
+            uint8_t rand_y = (uint8_t)(rand_act) & 0xFFU;
+            update_board(p_board, rand_x, rand_y, &p_role);
+        } else {    // game finishes
+            // TODO: get result
         }
     }
-    return Result::DRAW;
+    // TODO: draw
 }
 
 
