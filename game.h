@@ -5,7 +5,7 @@
 #include <iostream>
 #include <string>
 #include <set>
-const int BOARD_SIZE = 4;
+const int BOARD_SIZE = 8;
 using namespace std;
 enum class ROLE{
     BLACK,
@@ -288,8 +288,9 @@ public:
     bool check_end(){
         if(get_actions().empty()){
             Result r = get_result();
-            if(r == Result::WIN) cout << "WIN!" << endl;
-            if(r == Result::LOSE) cout << "LOSE!" << endl;
+            
+            if(r == Result::WIN) cout << "YOU LOSE!" << endl;
+            if(r == Result::LOSE) cout << "YOU WIN!" << endl;
             if(r == Result::DRAW) cout << "DRAW!" << endl;
             return true;
         }
