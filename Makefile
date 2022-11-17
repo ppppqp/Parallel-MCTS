@@ -7,7 +7,7 @@ FLAGS = -O3
 PROG = mcts
 SRC = main.cpp mcts.cpp
 $(PROG):$(OBJS)
-	$(CXX) $(FLAGS) $(SRC) -o $(PROG)
+	$(CXX) $(FLAGS) $(SRC) -pg -o $(PROG)
 
 all:$(PROG)
 
