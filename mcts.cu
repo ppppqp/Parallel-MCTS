@@ -3,6 +3,7 @@
 #include <stack>
 #include <algorithm>    
 #include <random>       
+#include <curand_kernel.h>
 using namespace std;
 
 #define MAX_SIM_STEP 100
