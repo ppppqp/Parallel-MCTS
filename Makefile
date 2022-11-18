@@ -10,7 +10,7 @@ CUDA_SRC = main.cpp mcts.cu
 PROG = mcts
 SRC = main.cpp mcts.cpp
 $(PROG):$(OBJS)
-	$(CXX) $(FLAGS) $(SRC) -pg -o $(PROG)
+	$(NVCC) $(FLAGS) $(SRC) -pg -o $(PROG)
 
 all:$(PROG)
 

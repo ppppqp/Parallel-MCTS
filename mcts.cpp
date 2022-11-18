@@ -65,17 +65,19 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
         if(!node->expandable){
             if(node->children.empty()){
                 // this is an terminal state
-                backprop(node, simulate(node));
+                backprop(node, BackPropObj(simulate(node)));
             } else{
                 S.push(select(node));
             }
         } else{
             node->expandable = false;
             expand(node);
-
+            BackPropObj bp;
             for(auto child : node->children){   // NOTE: can be parallelized
-                backprop(node, simulate(child));
+                Result r = simulate(child);
+                bp.add(r);
             }
+            backprop(node, bp);
         }
         if(checkAbort()) return;
     }
@@ -109,14 +111,14 @@ void MCTS::expand(Node * node){
     }
 }
 
-void MCTS::backprop(Node *node, Result result){
+void MCTS::backprop(Node *node, BackPropObj result){
         // cout << "enter backprop" << endl;
     bool shouldUpdate = false;
     while(node->parent){
         node = node->parent;
-        if(result == Result::WIN) node->score += 1;
-        node->n += 1;
-        shouldUpdate = !shouldUpdate;   // NOTE: not used?
+        if(shouldUpdate) node->score += result.wins;
+        node->n += result.sims;
+        shouldUpdate = !shouldUpdate;
     }
 }
 

@@ -1,3 +1,10 @@
+#ifdef __CUDACC__
+#define CUDA_HOSTDEV __host__ __device__
+#else
+#define CUDA_HOSTDEV
+#endif
+
+
 #ifndef MCTS_H
 #define MCTS_H
 #include <vector>
@@ -12,6 +19,23 @@ public:
     int nodesSimulated;
     int totalSimulations;
 };
+
+class BackPropObj{
+public:
+    int wins;
+    int sims;
+    CUDA_HOSTDEV BackPropObj(Result r){
+        wins = (r == Result::WIN) ? 1 : 0;
+        sims = 1;
+    }
+    CUDA_HOSTDEV BackPropObj():wins(0), sims(0){};
+    CUDA_HOSTDEV void add(Result r){
+        wins += (r == Result::WIN) ? 1 : 0;
+        sims += 1;
+    }
+};
+
+
 class MCTS{
 public:
     Node *root;
@@ -32,7 +56,7 @@ public:
     Result simulate(Node *root); // simulate a node
     Node* select(Node* root);
     void expand(Node* node);
-    void backprop(Node* node, Result result);
+    void backprop(Node* node, BackPropObj result);
     bool rollout(Board &b); // given a board and role, randomly simulate one step
     void traverse(Node *root, vector<Action> &path, Board& board); // traverse the tree to find a node to simulate
     bool checkAbort();

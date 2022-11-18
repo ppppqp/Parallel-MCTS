@@ -46,8 +46,6 @@ int main(){
             return 0;
         }
         path.push_back(action);
-
-        break;
     }
     return 0;
 }

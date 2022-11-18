@@ -1,2 +1,3 @@
 *.out
 mcts
+mcts_cuda

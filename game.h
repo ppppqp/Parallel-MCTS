@@ -288,7 +288,6 @@ public:
     bool check_end(){
         if(get_actions().empty()){
             Result r = get_result();
-            
             if(r == Result::WIN) cout << "YOU LOSE!" << endl;
             if(r == Result::LOSE) cout << "YOU WIN!" << endl;
             if(r == Result::DRAW) cout << "DRAW!" << endl;

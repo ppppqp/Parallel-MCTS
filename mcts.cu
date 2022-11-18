@@ -19,9 +19,9 @@ using namespace std;
 //  15:8 = x
 //   7:0 = y
 // 0xFFFF: no act is available
-__device__ void use_this(curandState *state, uint16_t* act, int* count, uint8_t x, uint8_t y, ){
-    *count ++;
-    if((int)(curand_uniform(state) * *count) % count == 0){
+__device__ void use_this(curandState *state, uint16_t* act, int* count, uint8_t x, uint8_t y ){
+    *count += 1;
+    if((int)(curand_uniform(state) * *count) % *count == 0){
         *act = (x << 8) + y;
     }
 }
@@ -30,82 +30,83 @@ __device__ void use_this(curandState *state, uint16_t* act, int* count, uint8_t 
 __device__ uint16_t get_random_action(uint8_t *s_board, ROLE *role){
     uint16_t act = 0xFFFFU;
     curandState state;
+    ROLE current_role = *role;
     curand_init((unsigned int)clock64(), threadIdx.y * blockDim.x + threadIdx.x, 0, &state);
-    State myStone = (current_role == ROLE::BLACK) ? State::BLACK : State::WHITE;
-    State opponentStone = (current_role == ROLE::BLACK) ? State::WHITE : State::BLACK;
+    int myStone = (current_role == ROLE::BLACK) ? D_BLACK : D_WHITE;
+    int opponentStone = (current_role == ROLE::BLACK) ? D_WHITE : D_BLACK;
     int count = 0;
-    for(int_8_t i = 0; i < BOARD_SIZE; i++){
-        for(int_8_t j = 0; j < BOARD_SIZE; j++){
+    for(int i = 0; i < BOARD_SIZE; i++){
+        for(int j = 0; j < BOARD_SIZE; j++){
             if(s_board[i*BOARD_SIZE+j] == myStone){
                 // top
-                int_8_t y = i-1;
-                int_8_t x = j;
-                while(y >= 0 && s[y*BOARD_SIZE+x] == opponentStone){
+                int y = i-1;
+                int x = j;
+                while(y >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
                     y--;
                 }
-                if(y >= 0 && y != i-1 &&  s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y)
+                if(y >= 0 && y != i-1 &&  s_board[y*BOARD_SIZE+x] == D_NONE) use_this(&state, &act, &count, x, y);
 
                 // bottom
                 y = i+1;
                 x = j;
-                while(y < BOARD_SIZE && s[y*BOARD_SIZE+x] == opponentStone){
+                while(y < BOARD_SIZE && s_board[y*BOARD_SIZE+x] == opponentStone){
                     y++;
                 }
-                if(y < BOARD_SIZE && y != i+1 && s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y);
+                if(y < BOARD_SIZE && y != i+1 && s_board[y*BOARD_SIZE+x] == D_NONE) use_this(&state, &act, &count, x, y);
 
                 // right
                 y = i;
                 x = j+1;
-                while(x < BOARD_SIZE && s[y*BOARD_SIZE+x] == opponentStone){
+                while(x < BOARD_SIZE && s_board[y*BOARD_SIZE+x] == opponentStone){
                     x++;
                 }
-                if(x < BOARD_SIZE && x != j+1 && s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y);
+                if(x < BOARD_SIZE && x != j+1 && s_board[y*BOARD_SIZE+x] == D_NONE) use_this(&state, &act, &count, x, y);
 
                 // left
                 y = i;
                 x = j-1;
-                while(x >= 0 && s[y*BOARD_SIZE+x] == opponentStone){
+                while(x >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
                     x--;
                 }
-                if(x >= 0 && x != j-1 && s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y);
+                if(x >= 0 && x != j-1 && s_board[y*BOARD_SIZE+x] == D_NONE) use_this(&state, &act, &count, x, y);
 
 
                 // top left
                 y = i-1;
                 x = j-1;
-                while(x >= 0 && y >= 0 && s[y*BOARD_SIZE+x] == opponentStone){
+                while(x >= 0 && y >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
                     x--;
                     y--;
                 }
-                if(x >= 0 && y >= 0 && x != j-1 && s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y);
+                if(x >= 0 && y >= 0 && x != j-1 && s_board[y*BOARD_SIZE+x] == D_NONE) use_this(&state, &act, &count, x, y);
 
                 // top right
                 y = i-1;
                 x = j+1;
-                while(x < BOARD_SIZE && y >= 0 && s[y*BOARD_SIZE+x] == opponentStone){
+                while(x < BOARD_SIZE && y >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
                     x++;
                     y--;
                 }
-                if(x < BOARD_SIZE && y >= 0 && x!= j+1 && s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y);
+                if(x < BOARD_SIZE && y >= 0 && x!= j+1 && s_board[y*BOARD_SIZE+x] == D_NONE) use_this(&state, &act, &count, x, y);
 
                 // bottom left
                 y = i+1;
                 x = j-1;
-                while(x >= 0 && y < BOARD_SIZE && s[y*BOARD_SIZE+x] == opponentStone){
+                while(x >= 0 && y < BOARD_SIZE && s_board[y*BOARD_SIZE+x] == opponentStone){
                     x--;
                     y++;
                 }
-                if(x >= 0 && y < BOARD_SIZE && x != j-1 && s[y*BOARD_SIZE+x] == State::NONE) suse_this(&state, &act, &count, x, y);
+                if(x >= 0 && y < BOARD_SIZE && x != j-1 && s_board[y*BOARD_SIZE+x] == D_NONE) use_this(&state, &act, &count, x, y);
 
 
                 // bottom right
                 y = i+1;
                 x = j+1;
-                while(x >= 0 && y >= 0 && s[y*BOARD_SIZE+x] == opponentStone){
+                while(x >= 0 && y >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
                     x++;
                     y++;
                 }
-                if(x < BOARD_SIZE && y < BOARD_SIZE && x != j+1 && s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y);
+                if(x < BOARD_SIZE && y < BOARD_SIZE && x != j+1 && s_board[y*BOARD_SIZE+x] == D_NONE) use_this(&state, &act, &count, x, y);
 
             }
         }
@@ -235,12 +236,12 @@ __device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROL
 
 
 
-__device Result::get_result(uint8_t *s_board){
+__device__ Result get_result(uint8_t *s_board){
     int count = 0;
     for(int i = 0; i < BOARD_SIZE; i++){
         for(int j = 0; j < BOARD_SIZE; j++){
-            if(s_board[i*BOARD_SIZE+j] == State::BLACK) count ++;
-            if(s_board[i*BOARD_SIZE+j] == State::WHITE) count --;
+            if(s_board[i*BOARD_SIZE+j] == D_BLACK) count ++;
+            if(s_board[i*BOARD_SIZE+j] == D_WHITE) count --;
         }
     }
     if(count > 0) return Result::WIN;
@@ -256,18 +257,16 @@ __device Result::get_result(uint8_t *s_board){
 // OUTPUTS:
 //  win: the number of wins (new results from the simulation) for every node on the path
 __global__ void simulate_kernel(uint16_t *path, int path_len, 
-                           uint16_t *children, int children_len,
-                           int *win){
+                           uint16_t *children, int children_len, int* wins, int* sims
+                            ){
 
     int row = blockDim.y * blockIdx.y + threadIdx.y;
     int col = blockDim.x * blockIdx.x + threadIdx.x;
     int tid = blockDim.x * threadIdx.y + threadIdx.x;
 
     // shared memory to update the total wins on the path
-    __shared__ int wins;
-    __shared__ int sims;
-    // __shared__ int s_win[BOARD_SIZE * BOARD_SIZE];
-    // __shared__ int s_sim[BOARD_SIZE * BOARD_SIZE];
+    __shared__ int s_win[BOARD_SIZE * BOARD_SIZE];
+    __shared__ int s_sim[BOARD_SIZE * BOARD_SIZE];
     // for (int s = 0; tid + s < BOARD_SIZE * BOARD_SIZE; s += blockDim.x * blockDim.y) {
     //     s_win[tid + s] = 0;
     // }
@@ -294,8 +293,6 @@ __global__ void simulate_kernel(uint16_t *path, int path_len,
     __shared__ ROLE current_role;
     if(threadIdx.x == 0 && threadIdx.y == 0){
         current_role = ROLE::WHITE;
-        wins = 0;
-        sims = 0;
     }
 
     __syncthreads();
@@ -325,26 +322,37 @@ __global__ void simulate_kernel(uint16_t *path, int path_len,
         uint8_t child_x = (uint8_t)(children[tid] >> 8) & 0xFFU;
         uint8_t child_y = (uint8_t)(children[tid]) & 0xFFU;
         update_board(p_board, child_x, child_y, &current_role);
-    }
-    __syncthreads();
-
-    // every thread gets a new private ROLE variable
-    ROLE p_role = current_role;
-
-    int step = 0;
-    while(step < MAX_SIM_STEP){
-        step++;
-        uint16_t rand_act = get_random_action(actions, &actions_len);
-        if (rand_act != 0xFFFFU) {
-            uint8_t rand_x = (uint8_t)(rand_act >> 8) & 0xFFU;
-            uint8_t rand_y = (uint8_t)(rand_act) & 0xFFU;
-            update_board(p_board, rand_x, rand_y, &p_role);
-        } else {    // game finishes
-            // TODO: get result
-            Result::r = get_result(s_board);
+        // every thread gets a new private ROLE variable
+        ROLE p_role = current_role;
+        int step = 0;
+        while(step < MAX_SIM_STEP){
+            step++;
+            uint16_t rand_act = get_random_action(p_board, &p_role);
+            if (rand_act != 0xFFFFU) {
+                uint8_t rand_x = (uint8_t)(rand_act >> 8) & 0xFFU;
+                uint8_t rand_y = (uint8_t)(rand_act) & 0xFFU;
+                update_board(p_board, rand_x, rand_y, &p_role);
+            } else {    // game finishes
+                // TODO: get result
+                Result r = get_result(s_board);
+                if(r == Result::WIN) s_win[child_y * BOARD_SIZE + child_x] ++;
+                s_sim[child_y * BOARD_SIZE + child_x] ++;
+            }
         }
     }
-    // TODO: draw
+    __syncthreads();
+    // reduce
+    if (threadIdx.x == 0 && threadIdx.y == 0) {
+        *wins = 0;
+        *sims = 0;
+        for(int i = 0; i < BOARD_SIZE; i++){
+            for(int j = 0; j < BOARD_SIZE; j++){
+                *wins += s_win[i*BOARD_SIZE + j];
+                *sims += s_sim[i*BOARD_SIZE + j];
+            }
+        }
+    }
+
 }
 
 
@@ -387,7 +395,9 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
         Node* node = S.top();
         
         S.pop();
-        Node *child = nullptr;
+        // Node *child = nullptr;
+        dim3 DimGrid(32, 32, 1);
+        dim3 DimBlock(32, 32, 1);
         if(!node->expandable){
             if(node->children.empty()){
                 // this is an terminal state
@@ -398,7 +408,7 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
         } else{
             node->expandable = false;
             expand(node);
-
+            
             for(auto child : node->children){   // NOTE: can be parallelized
                 backprop(node, simulate(child));
             }
@@ -434,14 +444,15 @@ void MCTS::expand(Node * node){
     }
 }
 
-void MCTS::backprop(Node *node, Result result){
+
+void MCTS::backprop(Node *node, BackPropObj result){
         // cout << "enter backprop" << endl;
     bool shouldUpdate = false;
     while(node->parent){
         node = node->parent;
-        if(result == Result::WIN) node->score += 1;
-        node->n += 1;
-        shouldUpdate = !shouldUpdate;   // NOTE: not used?
+        if(shouldUpdate) node->score += result.wins;
+        node->n += result.sims;
+        shouldUpdate = !shouldUpdate;
     }
 }
 
