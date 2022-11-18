@@ -257,8 +257,7 @@ __device__ Result get_result(uint8_t *s_board){
 // OUTPUTS:
 //  win: the number of wins (new results from the simulation) for every node on the path
 __global__ void simulate_kernel(uint16_t *path, int path_len, 
-                           uint16_t *children, int children_len, int* wins, int* sims
-                            ){
+                           uint16_t *children, int children_len, int*result){
 
     int row = blockDim.y * blockIdx.y + threadIdx.y;
     int col = blockDim.x * blockIdx.x + threadIdx.x;
@@ -343,12 +342,12 @@ __global__ void simulate_kernel(uint16_t *path, int path_len,
     __syncthreads();
     // reduce
     if (threadIdx.x == 0 && threadIdx.y == 0) {
-        *wins = 0;
-        *sims = 0;
+        result[0] = 0;
+        result[1] = 0;
         for(int i = 0; i < BOARD_SIZE; i++){
             for(int j = 0; j < BOARD_SIZE; j++){
-                *wins += s_win[i*BOARD_SIZE + j];
-                *sims += s_sim[i*BOARD_SIZE + j];
+                result[0] += s_win[i*BOARD_SIZE + j];
+                result[1] += s_sim[i*BOARD_SIZE + j];
             }
         }
     }
@@ -385,10 +384,11 @@ Action MCTS::run(){
 
 
 void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
-
     stack<Node*> S;
     S.push(root);
     int iter_step = 0;
+    dim3 DimGrid(32, 32, 1);
+    dim3 DimBlock(32, 32, 1);
     while(!S.empty()){
         // cout << iter_step << endl;
         iter_step++;
@@ -396,22 +396,55 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
         
         S.pop();
         // Node *child = nullptr;
-        dim3 DimGrid(32, 32, 1);
-        dim3 DimBlock(32, 32, 1);
+
         if(!node->expandable){
             if(node->children.empty()){
                 // this is an terminal state
-                backprop(node, simulate(node));
+                backprop(node, BackPropObj(simulate(node)));
             } else{
                 S.push(select(node));
             }
         } else{
             node->expandable = false;
             expand(node);
+
+            uint16_t * d_path;
+            int path_len = node->path.size();
+            uint16_t * d_children;
+            int children_len = node->children.size();
+            int *d_result;
+            cudaMalloc(&d_path, path_len*sizeof(uint16_t));
+            cudaMalloc(&d_children, children_len*sizeof(uint16_t));
+            cudaMalloc(&d_result, 2 * sizeof(int));
             
-            for(auto child : node->children){   // NOTE: can be parallelized
-                backprop(node, simulate(child));
+            uint16_t* children_buffer = new uint16_t[children_len];
+            for(int i = 0; i < children_len; i++){
+                Action a = node->children[i]->path.back();
+                children_buffer[i] = (a.x << 8) + a.y;
             }
+
+
+            uint16_t* path_buffer = new uint16_t[path_len];
+            for(int i = 0; i < path_len; i++){
+                Action a = node->path[i];
+                path_buffer[i] = (a.x << 8) + a.y;
+            }
+
+
+            cudaMemcpy( d_children, children_buffer, children_len*sizeof(uint16_t), cudaMemcpyHostToDevice);
+            cudaMemcpy( d_path, path_buffer, path_len*sizeof(uint16_t), cudaMemcpyHostToDevice);
+
+            int* result_buffer = new int[2];
+            simulate_kernel<<<DimGrid, DimBlock>>>(d_path, path_len, d_children, children_len, d_result);
+            cudaMemcpy( result_buffer, d_result, 2*sizeof(int), cudaMemcpyDeviceToHost);
+
+            BackPropObj obj;
+            obj.wins = result_buffer[0];
+            obj.sims = result_buffer[1];
+            backprop(node, obj);
+            delete[] children_buffer;
+            delete[] path_buffer;
+            delete[] result_buffer;
         }
     }
 }
