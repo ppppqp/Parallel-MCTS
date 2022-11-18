@@ -12,6 +12,20 @@ public:
     int nodesSimulated;
     int totalSimulations;
 };
+class BackPropObj{
+public:
+    int wins;
+    int sims;
+    BackPropObj(Result r){
+        wins = (r == Result::WIN) ? 1 : 0;
+        sims = 1;
+    }
+    BackPropObj():wins(0), sims(0){};
+    void add(Result r){
+        wins += (r == Result::WIN) ? 1 : 0;
+        sims += 1;
+    }
+};
 class MCTS{
 public:
     Node *root;
@@ -29,11 +43,11 @@ public:
         delete root;
     };
     Action run(); // get an optimal action.
-    Result simulate(Node *root); // simulate a node
+    static Result simulate(Node *root, Result* result); // simulate a node
     Node* select(Node* root);
     void expand(Node* node);
-    void backprop(Node* node, Result result);
-    bool rollout(Board &b); // given a board and role, randomly simulate one step
+    void backprop(Node* node, BackPropObj backpropObj);
+    static bool rollout(Board &b); // given a board and role, randomly simulate one step
     void traverse(Node *root, vector<Action> &path, Board& board); // traverse the tree to find a node to simulate
     bool checkAbort();
 };
