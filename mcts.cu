@@ -9,7 +9,6 @@ using namespace std;
 #define MAX_SIM_STEP 100
 #define MAX_EXPAND_STEP 100
 
-#define BOARD_W 9
 #define BLOCK_W 9
 
 #define D_NONE 0
@@ -20,83 +19,153 @@ using namespace std;
 //  15:8 = x
 //   7:0 = y
 // 0xFFFF: no act is available
-__device__ uint16_t git_random_action(uint16_t *actions, int *actions_len){
-    if (*actions_len == 0) return 0xFFFFU;
-    if (*actions_len == 1) {
-        *actions_len--;
-        return actions[0];
+__device__ void use_this(curandState *state, uint16_t* act, int* count, uint8_t x, uint8_t y, ){
+    *count ++;
+    if((int)(curand_uniform(state) * *count) % count == 0){
+        *act = (x << 8) + y;
     }
-    uint16_t act = 0xFFFFU;
-
-    curandState state;
-    curand_init((unsigned int)clock64(), threadIdx.y * blockDim.x + threadIdx.x, 0, &state);
-
-    int rand_idx = (int)(curand_uniform(&state) * actions_len);
-    rand_idx = rand_idx >= actions_len ? actions_len : rand_idx;
-
-    act = actions[rand_idx];
-    for (int i = rand_idx; i < actions_len-1; ++i) {
-        actions[i] = actions[i+1];
-    }
-
-    *actions_len--;
-    return act;
 }
 
+
+__device__ uint16_t get_random_action(uint8_t *s_board, ROLE *role){
+    uint16_t act = 0xFFFFU;
+    curandState state;
+    curand_init((unsigned int)clock64(), threadIdx.y * blockDim.x + threadIdx.x, 0, &state);
+    State myStone = (current_role == ROLE::BLACK) ? State::BLACK : State::WHITE;
+    State opponentStone = (current_role == ROLE::BLACK) ? State::WHITE : State::BLACK;
+    int count = 0;
+    for(int_8_t i = 0; i < BOARD_SIZE; i++){
+        for(int_8_t j = 0; j < BOARD_SIZE; j++){
+            if(s_board[i*BOARD_SIZE+j] == myStone){
+                // top
+                int_8_t y = i-1;
+                int_8_t x = j;
+                while(y >= 0 && s[y*BOARD_SIZE+x] == opponentStone){
+                    y--;
+                }
+                if(y >= 0 && y != i-1 &&  s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y)
+
+                // bottom
+                y = i+1;
+                x = j;
+                while(y < BOARD_SIZE && s[y*BOARD_SIZE+x] == opponentStone){
+                    y++;
+                }
+                if(y < BOARD_SIZE && y != i+1 && s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y);
+
+                // right
+                y = i;
+                x = j+1;
+                while(x < BOARD_SIZE && s[y*BOARD_SIZE+x] == opponentStone){
+                    x++;
+                }
+                if(x < BOARD_SIZE && x != j+1 && s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y);
+
+                // left
+                y = i;
+                x = j-1;
+                while(x >= 0 && s[y*BOARD_SIZE+x] == opponentStone){
+                    x--;
+                }
+                if(x >= 0 && x != j-1 && s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y);
+
+
+                // top left
+                y = i-1;
+                x = j-1;
+                while(x >= 0 && y >= 0 && s[y*BOARD_SIZE+x] == opponentStone){
+                    x--;
+                    y--;
+                }
+                if(x >= 0 && y >= 0 && x != j-1 && s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y);
+
+                // top right
+                y = i-1;
+                x = j+1;
+                while(x < BOARD_SIZE && y >= 0 && s[y*BOARD_SIZE+x] == opponentStone){
+                    x++;
+                    y--;
+                }
+                if(x < BOARD_SIZE && y >= 0 && x!= j+1 && s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y);
+
+                // bottom left
+                y = i+1;
+                x = j-1;
+                while(x >= 0 && y < BOARD_SIZE && s[y*BOARD_SIZE+x] == opponentStone){
+                    x--;
+                    y++;
+                }
+                if(x >= 0 && y < BOARD_SIZE && x != j-1 && s[y*BOARD_SIZE+x] == State::NONE) suse_this(&state, &act, &count, x, y);
+
+
+                // bottom right
+                y = i+1;
+                x = j+1;
+                while(x >= 0 && y >= 0 && s[y*BOARD_SIZE+x] == opponentStone){
+                    x++;
+                    y++;
+                }
+                if(x < BOARD_SIZE && y < BOARD_SIZE && x != j+1 && s[y*BOARD_SIZE+x] == State::NONE) use_this(&state, &act, &count, x, y);
+
+            }
+        }
+    }
+    return act;
+}
 
 
 __device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROLE *role){
     uint8_t myStone = (*role == ROLE::BLACK) ? D_BLACK : D_WHITE;
     uint8_t opponentStone = (*role == ROLE::BLACK) ? D_WHITE : D_BLACK;
 
-    uint8_t y = 0;
-    uint8_t x = 0;
+    int8_t y = 0;
+    int8_t x = 0;
 
     // top
     y = act_y-1;
     x = act_x;
-    while(y >= 0 && s_board[y * BOARD_W + x] == opponentStone){
+    while(y >= 0 && s_board[y * BOARD_SIZE + x] == opponentStone){
         y--;
     }
-    if(y >= 0 && s_board[y * BOARD_W + x] == myStone){
+    if(y >= 0 && s_board[y * BOARD_SIZE + x] == myStone){
         for(int i = act_y-1; i > y; i--){
-            s_board[i * BOARD_W + x] = myStone;
+            s_board[i * BOARD_SIZE + x] = myStone;
         }
     }
 
     // bottom
     y = act_y+1;
     x = act_x;
-    while(y < BOARD_W && s_board[y * BOARD_W + x] == opponentStone){
+    while(y < BOARD_SIZE && s_board[y * BOARD_SIZE + x] == opponentStone){
         y++;
     }
-    if(y < BOARD_W && s_board[y * BOARD_W + x] == myStone){
+    if(y < BOARD_SIZE && s_board[y * BOARD_SIZE + x] == myStone){
         for(int i = act_y+1; i < y; i++){
-            s_board[i * BOARD_W + x] = myStone;
+            s_board[i * BOARD_SIZE + x] = myStone;
         }
     }
 
     // right
     y = act_y;
     x = act_x+1;
-    while(x < BOARD_W && s_board[y * BOARD_W + x] == opponentStone){
+    while(x < BOARD_SIZE && s_board[y * BOARD_SIZE + x] == opponentStone){
         x++;
     }
-    if(x < BOARD_W && s_board[y * BOARD_W + x] == myStone){
+    if(x < BOARD_SIZE && s_board[y * BOARD_SIZE + x] == myStone){
         for(int i = act_x+1; i < x; i++){
-            s_board[y * BOARD_W + i] = myStone;
+            s_board[y * BOARD_SIZE + i] = myStone;
         }
     }
 
     // left
     y = act_y;
     x = act_x-1;
-    while(x >= 0 && s_board[y * BOARD_W + x] == opponentStone){
+    while(x >= 0 && s_board[y * BOARD_SIZE + x] == opponentStone){
         x--;
     }
-    if(x >= 0 && s_board[y * BOARD_W + x] == myStone){
+    if(x >= 0 && s_board[y * BOARD_SIZE + x] == myStone){
         for(int i = act_x-1; i > x; i--){
-            s_board[y * BOARD_W + i] = myStone;
+            s_board[y * BOARD_SIZE + i] = myStone;
         }
     }
 
@@ -104,14 +173,14 @@ __device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROL
     y = act_y-1;
     x = act_x-1;
     int count = 0;
-    while(x >= 0 && y >= 0 && s_board[y * BOARD_W + x] == opponentStone){
+    while(x >= 0 && y >= 0 && s_board[y * BOARD_SIZE + x] == opponentStone){
         x--;
         y--;
         count ++;
     }
-    if(x >=0 && y >= 0 && s_board[y * BOARD_W + x] == myStone){
+    if(x >=0 && y >= 0 && s_board[y * BOARD_SIZE + x] == myStone){
         for(int i = 0; i < count; i++){
-            s_board[(act_y-1-i) * BOARD_W + act_x-1-i] = myStone;
+            s_board[(act_y-1-i) * BOARD_SIZE + act_x-1-i] = myStone;
         }
     }
 
@@ -119,14 +188,14 @@ __device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROL
     y = act_y-1;
     x = act_x+1;
     count = 0;
-    while(x < BOARD_W && y >= 0 && s_board[y * BOARD_W + x] == opponentStone){
+    while(x < BOARD_SIZE && y >= 0 && s_board[y * BOARD_SIZE + x] == opponentStone){
         x++;
         y--;
         count ++;
     }
-    if(x < BOARD_W && y >= 0 && s_board[y * BOARD_W + x] == myStone){
+    if(x < BOARD_SIZE && y >= 0 && s_board[y * BOARD_SIZE + x] == myStone){
         for(int i = 0; i < count; i++){
-            s_board[(act_y-1-i) * BOARD_W + act_x+1+i] = myStone;
+            s_board[(act_y-1-i) * BOARD_SIZE + act_x+1+i] = myStone;
         }
     }
 
@@ -134,14 +203,14 @@ __device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROL
     y = act_y+1;
     x = act_x+1;
     count = 0;
-    while(x < BOARD_W && y < BOARD_W && s_board[y * BOARD_W + x] == opponentStone){
+    while(x < BOARD_SIZE && y < BOARD_SIZE && s_board[y * BOARD_SIZE + x] == opponentStone){
         x++;
         y++;
         count ++;
     }
-    if(x < BOARD_W && y < BOARD_W && s_board[y * BOARD_W + x] == myStone){
+    if(x < BOARD_SIZE && y < BOARD_SIZE && s_board[y * BOARD_SIZE + x] == myStone){
         for(int i = 0; i < count; i++){
-            s_board[(act_y+1+i) * BOARD_W + act_x+1+i] = myStone;
+            s_board[(act_y+1+i) * BOARD_SIZE + act_x+1+i] = myStone;
         }
     }
 
@@ -149,14 +218,14 @@ __device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROL
     y = act_y+1;
     x = act_x-1;
     count = 0;
-    while(x >=0 && y < BOARD_W && s_board[y * BOARD_W + x] == opponentStone){
+    while(x >=0 && y < BOARD_SIZE && s_board[y * BOARD_SIZE + x] == opponentStone){
         x--;
         y++;
         count ++;
     }
-    if(x >= 0 && y < BOARD_W && s_board[y * BOARD_W + x] == myStone){
+    if(x >= 0 && y < BOARD_SIZE && s_board[y * BOARD_SIZE + x] == myStone){
         for(int i = 0; i < count; i++){
-            s_board[(act_y+1+i) * BOARD_W + act_x-1-i] = myStone;
+            s_board[(act_y+1+i) * BOARD_SIZE + act_x-1-i] = myStone;
         }
     }
 
@@ -165,6 +234,20 @@ __device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROL
 }
 
 
+
+__device Result::get_result(uint8_t *s_board){
+    int count = 0;
+    for(int i = 0; i < BOARD_SIZE; i++){
+        for(int j = 0; j < BOARD_SIZE; j++){
+            if(s_board[i*BOARD_SIZE+j] == State::BLACK) count ++;
+            if(s_board[i*BOARD_SIZE+j] == State::WHITE) count --;
+        }
+    }
+    if(count > 0) return Result::WIN;
+    if(count == 0) return Result::DRAW;
+    if(count < 0) return Result::LOSE;
+    return Result::DRAW;
+}
 // Every thread calculates one child
 // INPUTS:
 //  path[i][15:8]: act_x
@@ -172,7 +255,7 @@ __device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROL
 //  children: the action added for each child, same decode as path
 // OUTPUTS:
 //  win: the number of wins (new results from the simulation) for every node on the path
-__global__ simulate_kernel(uint16_t *path, int path_len, 
+__global__ void simulate_kernel(uint16_t *path, int path_len, 
                            uint16_t *children, int children_len,
                            int *win){
 
@@ -181,33 +264,41 @@ __global__ simulate_kernel(uint16_t *path, int path_len,
     int tid = blockDim.x * threadIdx.y + threadIdx.x;
 
     // shared memory to update the total wins on the path
-    __shared__ int s_win[BOARD_W * BOARD_W];
-    
-    for (int s = 0; tid + s < BOARD_W * BOARD_W; s += blockDim.x * blockDim.y) {
-        s_win[tid + s] = 0;
-    }
-    __syncthreads();
+    __shared__ int wins;
+    __shared__ int sims;
+    // __shared__ int s_win[BOARD_SIZE * BOARD_SIZE];
+    // __shared__ int s_sim[BOARD_SIZE * BOARD_SIZE];
+    // for (int s = 0; tid + s < BOARD_SIZE * BOARD_SIZE; s += blockDim.x * blockDim.y) {
+    //     s_win[tid + s] = 0;
+    // }
+    // __syncthreads();
 
     // every block shares an initial board
-    __shared__ uint8_t s_board[BOARD_W * BOARD_W];
+    __shared__ uint8_t s_board[BOARD_SIZE * BOARD_SIZE];
 
-    for (int s_y = 0; threadIdx.y + s_y < BOARD_W; s_y += blockDim.y) {
-        for (int s_x = 0; threadIdx.x + s_x < BOARD_W; s_x += blockDim.x) {
+    for (int s_y = 0; threadIdx.y + s_y < BOARD_SIZE; s_y += blockDim.y) {
+        for (int s_x = 0; threadIdx.x + s_x < BOARD_SIZE; s_x += blockDim.x) {
             int tsy = threadIdx.y + s_y;
             int tsx = threadIdx.x + s_x;
-            s_board[tsy * BOARD_W + tsx] = D_NONE;
+            s_board[tsy * BOARD_SIZE + tsx] = D_NONE;
             if ((threadIdx.y + s_y == 3 && threadIdx.x + s_x == 3) || 
-                (threadIdx.y + s_y == 4 && threadIdx.x + s_x == 4)
-                s_board[tsy * BOARD_W + tsx] = D_BLACK;
+                (threadIdx.y + s_y == 4 && threadIdx.x + s_x == 4))
+                s_board[tsy * BOARD_SIZE + tsx] = D_BLACK;
             if ((threadIdx.y + s_y == 3 && threadIdx.x + s_x == 4) || 
-                (threadIdx.y + s_y == 4 && threadIdx.x + s_x == 3)
-                s_board[tsy * BOARD_W + tsx] = D_WHITE;
+                (threadIdx.y + s_y == 4 && threadIdx.x + s_x == 3))
+                s_board[tsy * BOARD_SIZE + tsx] = D_WHITE;
         }
     }
+
+
+    __shared__ ROLE current_role;
+    if(threadIdx.x == 0 && threadIdx.y == 0){
+        current_role = ROLE::WHITE;
+        wins = 0;
+        sims = 0;
+    }
+
     __syncthreads();
-
-    __shared__ ROLE current_role = ROLE::WHITE;
-
     // Let one thread do all the initialization of the board
     if (threadIdx.x == 0 && threadIdx.y == 0) {
         for (int i = 0; i < path_len; ++i) {
@@ -220,29 +311,20 @@ __global__ simulate_kernel(uint16_t *path, int path_len,
     __syncthreads();
 
     // every thread gets a private copy of the board
-    uint8_t p_board[BOARD_W * BOARD_W];
-    for (int y = 0; y < BOARD_W; ++y) {
-        for (int x = 0; x < BOARD_W; ++x) {
+    uint8_t p_board[BOARD_SIZE * BOARD_SIZE];
+    for (int y = 0; y < BOARD_SIZE; ++y) {
+        for (int x = 0; x < BOARD_SIZE; ++x) {
             // TODO: remove bank conflicts
-            p_board[y * BOARD_W + x] = s_board[y * BOARD_W + x];
+            p_board[y * BOARD_SIZE + x] = s_board[y * BOARD_SIZE + x];
         }
     }
 
     // update the private board based on the child
     // every thread also gets a private copy of the children
-    int actions_len = children_len - 1;
-    uint16_t actions[actions_len];
     if (tid < children_len) {
         uint8_t child_x = (uint8_t)(children[tid] >> 8) & 0xFFU;
         uint8_t child_y = (uint8_t)(children[tid]) & 0xFFU;
         update_board(p_board, child_x, child_y, &current_role);
-        for (int i = 0; i < children_len - 1; ++i) {
-            if (i >= tid) {
-                actions[i] = children[i + 1];
-            } else {
-                actions[i] = children[i];
-            }
-        }
     }
     __syncthreads();
 
@@ -252,13 +334,14 @@ __global__ simulate_kernel(uint16_t *path, int path_len,
     int step = 0;
     while(step < MAX_SIM_STEP){
         step++;
-        uint16_t rand_act = git_random_action(actions, &actions_len);
+        uint16_t rand_act = get_random_action(actions, &actions_len);
         if (rand_act != 0xFFFFU) {
             uint8_t rand_x = (uint8_t)(rand_act >> 8) & 0xFFU;
             uint8_t rand_y = (uint8_t)(rand_act) & 0xFFU;
             update_board(p_board, rand_x, rand_y, &p_role);
         } else {    // game finishes
             // TODO: get result
+            Result::r = get_result(s_board);
         }
     }
     // TODO: draw
