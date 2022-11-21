@@ -8,6 +8,7 @@ const bool AUTO = true;
 int main(){
     Board b;
     vector<Action> path;
+    Logger logger("log");
     try{
         while(true){
                 b.print();
@@ -36,14 +37,16 @@ int main(){
                 }
                 b.print();
                 if(b.check_end()){
+                    logger.flush();
                     return 0;
                 }
                 MCTS mcts(path);
-                Action action = mcts.run();
+                Action action = mcts.run(logger);
                 b.update(action);
                 cout << "BLACK MOVE:" <<  action.y << ' ' <<  action.x << endl;
                 if(b.check_end()){
                     b.print();
+                    logger.flush();
                     return 0;
                 }
                 path.push_back(action);
@@ -51,6 +54,6 @@ int main(){
     }catch(char * c){
         cout << c << endl;
     }
-    
+    logger.flush();
     return 0;
 }

@@ -1,11 +1,10 @@
-
 #ifndef GAME_H
 #define GAME_H
 #include <vector>
 #include <iostream>
 #include <string>
 #include <set>
-const int BOARD_SIZE = 8;
+const int BOARD_SIZE = 10;
 using namespace std;
 enum class ROLE{
     BLACK,
@@ -38,7 +37,7 @@ enum class State{
 
 class Board{
 public:
-    State s[9][9];
+    State s[BOARD_SIZE+1][BOARD_SIZE+1];
     ROLE current_role;
     Board():current_role(ROLE::WHITE){
         for(auto i = 0; i < BOARD_SIZE; i++){

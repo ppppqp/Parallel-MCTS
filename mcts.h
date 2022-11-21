@@ -10,7 +10,15 @@
 #include <vector>
 #include "tree.h"
 #include "game.h"
+#include "logger.h"
 #include <time.h>
+
+const int MAX_SIM_STEP = 100;
+const int MAX_EXPAND_STEP = 10;
+const int MILLION = 1000000;
+const long long BILLION = 1000000000;
+const int MAX_TIME = 1000; // each step takes 1 second
+
 using namespace std;
 class MCTSProfiler{
 public:
@@ -52,7 +60,7 @@ public:
     ~MCTS(){
         delete root;
     };
-    Action run(); // get an optimal action.
+    Action run(Logger& logger); // get an optimal action.
     Result simulate(Node *root); // simulate a node
     Node* select(Node* root);
     void expand(Node* node);

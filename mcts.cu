@@ -6,11 +6,6 @@
 #include <curand_kernel.h>
 using namespace std;
 
-#define MAX_SIM_STEP 100
-#define MAX_EXPAND_STEP 100
-
-#define BLOCK_W 9
-
 #define D_NONE 0
 #define D_WHITE 1
 #define D_BLACK 2
@@ -113,6 +108,11 @@ __device__ uint16_t get_random_action(uint8_t *s_board, ROLE *role){
     }
     return act;
 }
+
+
+
+
+
 
 
 __device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROLE *role){
@@ -279,11 +279,11 @@ __global__ void simulate_kernel(uint16_t *path, int path_len,
             int tsy = threadIdx.y + s_y;
             int tsx = threadIdx.x + s_x;
             s_board[tsy * BOARD_SIZE + tsx] = D_NONE;
-            if ((threadIdx.y + s_y == 3 && threadIdx.x + s_x == 3) || 
-                (threadIdx.y + s_y == 4 && threadIdx.x + s_x == 4))
+            if ((threadIdx.y + s_y == BOARD_SIZE/2-1 && threadIdx.x + s_x == BOARD_SIZE/2-1) || 
+                (threadIdx.y + s_y == BOARD_SIZE/2 && threadIdx.x + s_x == BOARD_SIZE/2))
                 s_board[tsy * BOARD_SIZE + tsx] = D_BLACK;
-            if ((threadIdx.y + s_y == 3 && threadIdx.x + s_x == 4) || 
-                (threadIdx.y + s_y == 4 && threadIdx.x + s_x == 3))
+            if ((threadIdx.y + s_y == BOARD_SIZE/2-1 && threadIdx.x + s_x == BOARD_SIZE/2) || 
+                (threadIdx.y + s_y == BOARD_SIZE/2 && threadIdx.x + s_x == BOARD_SIZE/2-1))
                 s_board[tsy * BOARD_SIZE + tsx] = D_WHITE;
         }
     }
@@ -355,7 +355,9 @@ __global__ void simulate_kernel(uint16_t *path, int path_len,
 }
 
 
-Action MCTS::run(){
+Action MCTS::run(Logger& logger){
+    logger.setGPU();
+    clock_gettime(CLOCK_REALTIME, &start);
     Board b;    // NOTE: duplicate of the board in main. Can we remove it?
 
     for(auto action:init_path){
@@ -378,6 +380,15 @@ Action MCTS::run(){
         }
     }
     // get the best move and return
+
+
+    // get time
+    uint64_t diff;
+    clock_gettime(CLOCK_REALTIME, &end);
+    diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
+    logger.log("time used:" + to_string(diff/MILLION));
+    logger.record_time(diff/MILLION);
+
     return bestMove;
 }
 
@@ -388,7 +399,7 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
     S.push(root);
     int iter_step = 0;
     dim3 DimGrid(32, 32, 1);
-    dim3 DimBlock(32, 32, 1);
+    dim3 DimBlock(1, 1, 1);
     while(!S.empty()){
         // cout << iter_step << endl;
         iter_step++;

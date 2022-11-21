@@ -4,35 +4,34 @@
 #include <algorithm>    
 #include <random>       
 using namespace std;
-const int MAX_SIM_STEP = 100;
-const int MAX_EXPAND_STEP = 100;
-const int MILLION = 1000000;
-const long long BILLION = 1000000000;
-const int MAX_TIME = 1000; // each step takes 1 second
+
+
 bool MCTS::checkAbort(){
-    if(!abort){
-        uint64_t diff;
-		clock_gettime(CLOCK_REALTIME, &end);
-		diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
-		abort = diff / MILLION > MAX_TIME;
-        // cout << diff / MILLION << endl;
-    }
-    return abort;
+    // if(!abort){
+    //     uint64_t diff;
+	// 	clock_gettime(CLOCK_REALTIME, &end);
+	// 	diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
+	// 	abort = diff / MILLION > MAX_TIME;
+    //     // cout << diff / MILLION << endl;
+    // }
+    // return abort;
+    return false;
 }
 
 
-Action MCTS::run(){
+Action MCTS::run(Logger& logger){
+    logger.setCPU();
     Board b;
     clock_gettime(CLOCK_REALTIME, &start);
     for(auto action:init_path){
         // initialize the board with history actions
         b.update(action);
     }
-    // int step = 0;
-    while(true){
+    int step = 0;
+    while(step < MAX_EXPAND_STEP){
         // cout << "traverse step:" << cstep << endl;
         traverse(root, init_path, b);
-        // step += 1;
+        step += 1;
         if(checkAbort()) break;
     }
     Action bestMove(0,0);
@@ -44,6 +43,13 @@ Action MCTS::run(){
             bestMove = child->path.back();
         }
     }
+    // get time:
+    uint64_t diff;
+    clock_gettime(CLOCK_REALTIME, &end);
+    diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
+    // cout << "time used:" << diff / MILLION << endl;
+    logger.log("time used:" + to_string(diff/MILLION));
+    logger.record_time(diff/MILLION);
     // get the best move and return
     return bestMove;
 }
@@ -129,9 +135,9 @@ Result MCTS::simulate(Node *root){
     for(auto action:root->path){
         b.update(action);
     }
-    // int step = 0;
-    while(true){
-        // step++;
+    int step = 0;
+    while(step < MAX_SIM_STEP){
+        step++;
         if(!rollout(b)){
             return b.get_result();
         }
