@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 #include <set>
-const int BOARD_SIZE = 10;
+const int BOARD_SIZE = 20;
 using namespace std;
 enum class ROLE{
     BLACK,
@@ -295,7 +295,10 @@ public:
         return false;
     }
     void print(){
-        cout << "  0 1 2 3 4 5 6 7" << endl;
+        cout << "  ";
+        for (int i = 0; i < BOARD_SIZE; ++i)
+            cout << i << " ";
+        cout << endl;
         for(int i = 0; i < BOARD_SIZE; i++){
             cout << i << ' ';
             for(int j = 0; j < BOARD_SIZE; j++){

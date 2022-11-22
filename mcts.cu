@@ -398,7 +398,7 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
     stack<Node*> S;
     S.push(root);
     int iter_step = 0;
-    dim3 DimGrid(32, 32, 1);
+    dim3 DimGrid(BOARD_SIZE, BOARD_SIZE, 1);
     dim3 DimBlock(1, 1, 1);
     while(!S.empty()){
         // cout << iter_step << endl;
@@ -453,6 +453,10 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
             obj.wins = result_buffer[0];
             obj.sims = result_buffer[1];
             backprop(node, obj);
+            
+            cudaFree(d_path);
+            cudaFree(d_children);
+            cudaFree(d_result);
             delete[] children_buffer;
             delete[] path_buffer;
             delete[] result_buffer;
