@@ -5,7 +5,7 @@ FLAGS = -O3
 # PROG = multi_gpu
 # SRC = multi_gpu.cu
 CUDA_PROG = mcts_cuda
-CUDA_SRC = main.cpp mcts.cu
+CUDA_SRC = main.cpp mcts.cu mcts_kernel.cu
 
 PROG = mcts
 SRC = main.cpp mcts.cpp

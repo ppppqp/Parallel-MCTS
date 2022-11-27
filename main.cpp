@@ -41,7 +41,7 @@ int main(){
                     return 0;
                 }
                 MCTS mcts(path);
-                Action action = mcts.run(logger);
+                Action action = mcts.run(logger);   // NOTE: RUN
                 b.update(action);
                 cout << "BLACK MOVE:" <<  action.y << ' ' <<  action.x << endl;
                 if(b.check_end()){

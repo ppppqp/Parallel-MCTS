@@ -12,6 +12,7 @@
 #include "game.h"
 #include "logger.h"
 #include <time.h>
+#include <curand_kernel.h>
 
 const int MAX_SIM_STEP = 100;
 const int MAX_EXPAND_STEP = 10;
@@ -20,6 +21,19 @@ const long long BILLION = 1000000000;
 const int MAX_TIME = 1000; // each step takes 1 second
 
 using namespace std;
+
+__device__ void backprop_device(int *score, int *n, int level, int new_score, int new_n)
+__device__ void board_initialize(uint16_t *path, int path_len, uint8_t *s_board, ROLE* current_role);
+__device__ void expand_device(uint8_t *s_board, ROLE *role, uint16_t *children);
+__device__ void use_this(curandState *state, uint16_t* act, int* count, uint8_t x, uint8_t y );
+__device__ uint16_t get_random_action(uint8_t *s_board, ROLE *role);
+__device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROLE *role);
+__device__ Result get_result(uint8_t *s_board);
+__device__ void simulate_device(uint8_t *s_board, ROLE *current_role, uint16_t *children, int children_len, int *win, int *sim, int*result);
+__global__ void simulate_kernel(uint16_t *path, int path_len, uint16_t *children, int children_len, int*result);
+
+__global__ void traverse_kernel(uint16_t *path, int path_len, uint16_t *children, uint *children_len, int *score, int *n);
+
 class MCTSProfiler{
 public:
     int nodesTraversed;
