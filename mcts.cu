@@ -1,8 +1,10 @@
 #include "mcts.h"
 #include "game.h"
+#include "timer.h"
 #include <stack>
 #include <algorithm>    
 #include <random>       
+#include <thread>
 #include <curand_kernel.h>
 using namespace std;
 
@@ -10,6 +12,7 @@ using namespace std;
 #define D_WHITE 1
 #define D_BLACK 2
 
+const bool MULTITHREAD = true;
 // act:
 //  15:8 = x
 //   7:0 = y
@@ -365,11 +368,28 @@ Action MCTS::run(Logger& logger){
         b.update(action);
     }
     int step = 0;
+    vector<thread> vt;
+
+    Timer timer;
+    timer.start();
     while(step < MAX_EXPAND_STEP){
-        // cout << "traverse step:" << cstep << endl;
-        traverse(root, init_path, b);
+        if(MULTITHREAD){
+            thread t(&MCTS::traverse, this, std::ref(root), std::ref(init_path), std::ref(b), step);
+            vt.push_back(move(t));
+        } else{
+            traverse(root, init_path, b, step);
+        }
         step += 1;
     }
+    timer.stop();
+    logger.log("before join:"+ to_string(timer.time()));
+    if(MULTITHREAD){
+        for(thread& t : vt){
+            if(t.joinable()) t.join();
+        }
+    }
+    timer.stop();
+    logger.log("out of while loop:"+ to_string(timer.time()));
     Action bestMove(0,0);
     double maxv = 0;
     for(auto child : root->children){
@@ -380,23 +400,23 @@ Action MCTS::run(Logger& logger){
         }
     }
     // get the best move and return
-
-
     // get time
     uint64_t diff;
     clock_gettime(CLOCK_REALTIME, &end);
     diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
-    logger.log("time used:" + to_string(diff/MILLION));
-    logger.record_time(diff/MILLION);
+    logger.log("time used:" + to_string(diff/(MILLION/1000)));
+    logger.record_time(diff/(MILLION/1000));
 
     return bestMove;
 }
 
 
 
-void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
+void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid){
     stack<Node*> S;
     S.push(root);
+    Timer timer;
+    timer.start();
     int iter_step = 0;
     dim3 DimGrid(BOARD_SIZE, BOARD_SIZE, 1);
     dim3 DimBlock(1, 1, 1);
@@ -413,7 +433,7 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
                 // this is an terminal state
                 backprop(node, BackPropObj(simulate(node)));
             } else{
-                S.push(select(node));
+                S.push(select(node)[0]);
             }
         } else{
             node->expandable = false;
@@ -462,23 +482,31 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
             delete[] result_buffer;
         }
     }
+    timer.stop();
+    cout << "tid:" << tid << " time:" << timer.get_end() << endl;
 }
 
-Node* MCTS::select(Node* node){
-    // cout << "enter select" << endl;
+deque<Node*> MCTS::select(Node* node){
     double maxn = -1;
-    Node* child = nullptr;   
+    Node* child = nullptr;
+    deque<Node*> v(SPECULATE_NUM, nullptr);
+    int vsize = 0;   
     for(auto c : node->children){
-        // cout << c << endl;
         double UCB = c->UCB;
         if(UCB > maxn){
             child = c;
             maxn = UCB;
+            if(vsize < SPECULATE_NUM){
+                v[vsize] = c;
+                vsize ++;
+            }else{
+                v.pop_back();
+                v.push_front(c);
+            }
         }
     }
-    // cout << child << endl;
-    // cout << "exit select" << endl;
-    return child;
+
+    return v;
 }
 
 void MCTS::expand(Node * node){

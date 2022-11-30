@@ -12,13 +12,12 @@
 #include "game.h"
 #include "logger.h"
 #include <time.h>
+#include <deque>
 
 const int MAX_SIM_STEP = 100;
-const int MAX_EXPAND_STEP = 10;
-const int MILLION = 1000000;
-const long long BILLION = 1000000000;
+const int MAX_EXPAND_STEP = 2;
 const int MAX_TIME = 1000; // each step takes 1 second
-
+const int SPECULATE_NUM = 2;
 using namespace std;
 class MCTSProfiler{
 public:
@@ -62,11 +61,11 @@ public:
     };
     Action run(Logger& logger); // get an optimal action.
     Result simulate(Node *root); // simulate a node
-    Node* select(Node* root);
+    deque<Node*> select(Node* root);
     void expand(Node* node);
     void backprop(Node* node, BackPropObj result);
     bool rollout(Board &b); // given a board and role, randomly simulate one step
-    void traverse(Node *root, vector<Action> &path, Board& board); // traverse the tree to find a node to simulate
+    void traverse(Node *root, vector<Action> &path, Board& board, int tid); // traverse the tree to find a node to simulate
     bool checkAbort();
 };
 
