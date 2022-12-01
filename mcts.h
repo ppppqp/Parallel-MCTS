@@ -22,7 +22,7 @@ const int MAX_TIME = 1000; // each step takes 1 second
 
 using namespace std;
 
-__device__ void backprop_device(int *score, int *n, int level, int new_score, int new_n)
+__device__ void backprop_device(int *score, int *n, int level, int new_score, int new_n);
 __device__ void board_initialize(uint16_t *path, int path_len, uint8_t *s_board, ROLE* current_role);
 __device__ void expand_device(uint8_t *s_board, ROLE *role, uint16_t *children);
 __device__ void use_this(curandState *state, uint16_t* act, int* count, uint8_t x, uint8_t y );
