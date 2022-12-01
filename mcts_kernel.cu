@@ -141,7 +141,7 @@ __device__ void backprop_device(int *score, int *n, int level, int new_score, in
 }
 
 // path
-__global__ void traverse_kernel(uint16_t *path, int path_len, uint16_t *children, uint *children_len, int *score, int *n, uint8_t *board){
+__global__ void traverse_kernel(uint16_t *path, int path_len, uint16_t *children, uint *children_len, int *score, int *n){
     int tid = blockDim.x * threadIdx.y + threadIdx.x;
 
     __shared__ int s_cur_score[BOARD_SIZE * BOARD_SIZE];
@@ -166,12 +166,6 @@ __global__ void traverse_kernel(uint16_t *path, int path_len, uint16_t *children
     
     board_initialize(path, path_len, s_board, &s_current_role);
 
-    __syncthreads();
-
-    if (tid < BOARD_SIZE * BOARD_SIZE) {
-        board[BOARD_SIZE * threadIdx.y + threadIdx.x] = s_board[BOARD_SIZE * threadIdx.y + threadIdx.x];
-    }
-
     __shared__ uint16_t s_children[BOARD_SIZE * BOARD_SIZE];
     __shared__ int s_children_len;
 
@@ -183,9 +177,8 @@ __global__ void traverse_kernel(uint16_t *path, int path_len, uint16_t *children
 
     __shared__ int s_result[2];
 
-    // while (level < 10 && s_children_len > 0) {
-    // while (s_children_len != 0) {
-        // simulate_device(s_board, &s_current_role, s_children, s_children_len, s_cur_score, s_cur_n, s_result);
+    while (s_children_len != 0) {
+        simulate_device(s_board, &s_current_role, s_children, s_children_len, s_cur_score, s_cur_n, s_result);
         __syncthreads();
         if (tid == 0) {
             s_score[level] += s_result[0];
@@ -194,13 +187,13 @@ __global__ void traverse_kernel(uint16_t *path, int path_len, uint16_t *children
 
         if (level == 0) {
             if (tid < s_children_len){
-                children[tid] = s_children[tid];
+                if (blockIdx.z == 0) children[tid] = s_children[tid];
                 score[tid] += s_cur_score[tid];
                 n[tid] += s_cur_n[tid];
             }
-            if (tid == 0) *children_len = s_children_len;
+            if (tid == 0 && blockIdx.z == 0) *children_len = s_children_len;
         }
-/*        __syncthreads();
+        __syncthreads();
 
         // select
         if (tid == 0) {
@@ -216,15 +209,14 @@ __global__ void traverse_kernel(uint16_t *path, int path_len, uint16_t *children
             }
             uint8_t act_x = (child >> 8) & 0xFFU;
             uint8_t act_y = child & 0xFFU;
-            // update_board(s_board, act_x, act_y, &s_current_role);
-            // expand_device(s_board, &s_current_role, s_children, &s_children_len);
+            update_board(s_board, act_x, act_y, &s_current_role);
+            expand_device(s_board, &s_current_role, s_children, &s_children_len);
         }
         __syncthreads();
-        // backprop_device(s_score, s_n, level, s_result[0], s_result[1]);
+        backprop_device(s_score, s_n, level, s_result[0], s_result[1]);
         __syncthreads();
         level++;
-    // }
-*/
+    }
 }
 
 
