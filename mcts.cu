@@ -6,6 +6,7 @@
 #include <random>       
 #include <thread>
 #include <curand_kernel.h>
+#include <mutex>
 using namespace std;
 
 #define D_NONE 0
@@ -440,13 +441,17 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid, cudaStr
         if(!node->expandable){
             if(node->children.empty()){
                 // this is an terminal state
+                node_lock.lock();
                 backprop(node, BackPropObj(simulate(node)));
+                node_lock.unlock();
             } else{
                 S.push(select(node)[0]);
             }
         } else{
+            node_lock.lock();
             node->expandable = false;
             expand(node);
+            node_lock.unlock();
 
             uint16_t * d_path;
             int path_len = node->path.size();
@@ -481,8 +486,12 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid, cudaStr
             BackPropObj obj;
             obj.wins = result_buffer[0];
             obj.sims = result_buffer[1];
-            backprop(node, obj);
             
+            node_lock.lock();
+            backprop(node, obj);
+            node_lock.unlock();
+
+
             cudaFree(d_path);
             cudaFree(d_children);
             cudaFree(d_result);
