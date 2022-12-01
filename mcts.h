@@ -32,7 +32,7 @@ __device__ Result get_result(uint8_t *s_board);
 __device__ void simulate_device(uint8_t *s_board, ROLE *current_role, uint16_t *children, int children_len, int *win, int *sim, int*result);
 __global__ void simulate_kernel(uint16_t *path, int path_len, uint16_t *children, int children_len, int*result);
 
-__global__ void traverse_kernel(uint16_t *path, int path_len, uint16_t *children, uint *children_len, int *score, int *n);
+__global__ void traverse_kernel(uint16_t *path, int path_len, uint16_t *children, uint *children_len, int *score, int *n, uint8_t *board);
 
 class MCTSProfiler{
 public:

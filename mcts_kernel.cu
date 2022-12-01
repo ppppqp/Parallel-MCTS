@@ -38,93 +38,95 @@ __device__ void board_initialize(uint16_t *path, int path_len, uint8_t *s_board,
     __syncthreads();
 }
 
+__device__ uint16_t combine_xy(int x, int y) {
+    uint8_t act_x = (uint8_t)(x & 0xFF);
+    uint8_t act_y = (uint8_t)(y & 0xFF);
+    uint16_t result = (act_x << 8) + act_y;
+    return result;
+}
+
 __device__ void expand_device(uint8_t *s_board, ROLE *role, uint16_t *children, int *children_len){
-    int i = blockDim.y * blockIdx.y + threadIdx.y;
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
-    if (j == 0 && i == 0) {
-        *children_len = 0;
-    }
-    __syncthreads();
     int index = 0;
     ROLE current_role = *role;
     int myStone = (current_role == ROLE::BLACK) ? D_BLACK : D_WHITE;
     int opponentStone = (current_role == ROLE::BLACK) ? D_WHITE : D_BLACK;
-    if (i < BOARD_SIZE && j < BOARD_SIZE){
-        if(s_board[i*BOARD_SIZE+j] == myStone){
-            // top
-            int y = i-1;
-            int x = j;
-            while(y >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
-                y--;
-            }
-            if(y >= 0 && y != i-1 &&  s_board[y*BOARD_SIZE+x] == D_NONE) {
-                children[index++] = (x << 8) + y;
-            }
+    for(int i = 0; i < BOARD_SIZE; i++){
+        for(int j = 0; j < BOARD_SIZE; j++){
+            if(s_board[i*BOARD_SIZE+j] == myStone){
+                // top
+                int y = i-1;
+                int x = j;
+                while(y >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
+                    y--;
+                }
+                if(y >= 0 && y != i-1 &&  s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = combine_xy(x, y);
 
-            // bottom
-            y = i+1;
-            x = j;
-            while(y < BOARD_SIZE && s_board[y*BOARD_SIZE+x] == opponentStone){
-                y++;
-            }
-            if(y < BOARD_SIZE && y != i+1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = (x << 8) + y;
+                // bottom
+                y = i+1;
+                x = j;
+                while(y < BOARD_SIZE && s_board[y*BOARD_SIZE+x] == opponentStone){
+                    y++;
+                }
+                if(y < BOARD_SIZE && y != i+1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = combine_xy(x, y);
 
-            // right
-            y = i;
-            x = j+1;
-            while(x < BOARD_SIZE && s_board[y*BOARD_SIZE+x] == opponentStone){
-                x++;
-            }
-            if(x < BOARD_SIZE && x != j+1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = (x << 8) + y;
+                // right
+                y = i;
+                x = j+1;
+                while(x < BOARD_SIZE && s_board[y*BOARD_SIZE+x] == opponentStone){
+                    x++;
+                }
+                if(x < BOARD_SIZE && x != j+1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = combine_xy(x, y);
 
-            // left
-            y = i;
-            x = j-1;
-            while(x >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
-                x--;
-            }
-            if(x >= 0 && x != j-1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = (x << 8) + y;
-
-
-            // top left
-            y = i-1;
-            x = j-1;
-            while(x >= 0 && y >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
-                x--;
-                y--;
-            }
-            if(x >= 0 && y >= 0 && x != j-1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = (x << 8) + y;
-
-            // top right
-            y = i-1;
-            x = j+1;
-            while(x < BOARD_SIZE && y >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
-                x++;
-                y--;
-            }
-            if(x < BOARD_SIZE && y >= 0 && x!= j+1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = (x << 8) + y;
-
-            // bottom left
-            y = i+1;
-            x = j-1;
-            while(x >= 0 && y < BOARD_SIZE && s_board[y*BOARD_SIZE+x] == opponentStone){
-                x--;
-                y++;
-            }
-            if(x >= 0 && y < BOARD_SIZE && x != j-1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = (x << 8) + y;
+                // left
+                y = i;
+                x = j-1;
+                while(x >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
+                    x--;
+                }
+                if(x >= 0 && x != j-1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = combine_xy(x, y);
 
 
-            // bottom right
-            y = i+1;
-            x = j+1;
-            while(x >= 0 && y >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
-                x++;
-                y++;
+                // top left
+                y = i-1;
+                x = j-1;
+                while(x >= 0 && y >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
+                    x--;
+                    y--;
+                }
+                if(x >= 0 && y >= 0 && x != j-1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = combine_xy(x, y);
+
+                // top right
+                y = i-1;
+                x = j+1;
+                while(x < BOARD_SIZE && y >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
+                    x++;
+                    y--;
+                }
+                if(x < BOARD_SIZE && y >= 0 && x!= j+1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = combine_xy(x, y);
+
+                // bottom left
+                y = i+1;
+                x = j-1;
+                while(x >= 0 && y < BOARD_SIZE && s_board[y*BOARD_SIZE+x] == opponentStone){
+                    x--;
+                    y++;
+                }
+                if(x >= 0 && y < BOARD_SIZE && x != j-1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = combine_xy(x, y);
+
+
+                // bottom right
+                y = i+1;
+                x = j+1;
+                while(x >= 0 && y >= 0 && s_board[y*BOARD_SIZE+x] == opponentStone){
+                    x++;
+                    y++;
+                }
+                if(x < BOARD_SIZE && y < BOARD_SIZE && x != j+1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = combine_xy(x, y);
             }
-            if(x < BOARD_SIZE && y < BOARD_SIZE && x != j+1 && s_board[y*BOARD_SIZE+x] == D_NONE) children[index++] = (x << 8) + y;
         }
     }
-    *children_len = index;
+    if (threadIdx.y == 0 && threadIdx.x == 0)
+        *children_len = index;
 }
 
 __device__ void backprop_device(int *score, int *n, int level, int new_score, int new_n){
@@ -139,7 +141,7 @@ __device__ void backprop_device(int *score, int *n, int level, int new_score, in
 }
 
 // path
-__global__ void traverse_kernel(uint16_t *path, int path_len, uint16_t *children, uint *children_len, int *score, int *n){
+__global__ void traverse_kernel(uint16_t *path, int path_len, uint16_t *children, uint *children_len, int *score, int *n, uint8_t *board){
     int tid = blockDim.x * threadIdx.y + threadIdx.x;
 
     __shared__ int s_cur_score[BOARD_SIZE * BOARD_SIZE];
@@ -163,6 +165,12 @@ __global__ void traverse_kernel(uint16_t *path, int path_len, uint16_t *children
     __syncthreads();
     
     board_initialize(path, path_len, s_board, &s_current_role);
+
+    __syncthreads();
+
+    if (tid < BOARD_SIZE * BOARD_SIZE) {
+        board[BOARD_SIZE * threadIdx.y + threadIdx.x] = s_board[BOARD_SIZE * threadIdx.y + threadIdx.x];
+    }
 
     __shared__ uint16_t s_children[BOARD_SIZE * BOARD_SIZE];
     __shared__ int s_children_len;
@@ -436,6 +444,7 @@ __device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROL
         }
     }
 
+    s_board[act_y * BOARD_SIZE + act_x] = myStone;
     // flip the role
     *role = (*role == ROLE::WHITE) ? ROLE::BLACK : ROLE::WHITE;
 }

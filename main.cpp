@@ -42,8 +42,8 @@ int main(){
                 }
                 MCTS mcts(path);
                 Action action = mcts.run(logger);   // NOTE: RUN
-                b.update(action);
                 cout << "BLACK MOVE:" <<  action.y << ' ' <<  action.x << endl;
+                b.update(action);
                 if(b.check_end()){
                     b.print();
                     logger.flush();

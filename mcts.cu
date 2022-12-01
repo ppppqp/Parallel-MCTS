@@ -30,11 +30,18 @@ Action MCTS::run(Logger& logger){
     cudaMalloc(&d_score, BOARD_SIZE*BOARD_SIZE*sizeof(int));
     cudaMalloc(&d_n, BOARD_SIZE*BOARD_SIZE*sizeof(int));
 
+    uint8_t * d_board;
+    uint8_t * h_board = new uint8_t[BOARD_SIZE*BOARD_SIZE];
+    cudaMalloc(&d_board, BOARD_SIZE*BOARD_SIZE*sizeof(uint8_t));
+
     uint16_t* path_buffer = new uint16_t[path_len];
+    cout << "path: ";
     for(int i = 0; i < path_len; i++){
         Action a = init_path[i];
         path_buffer[i] = (a.x << 8) + a.y;
+        cout << a.y << "," << a.x << " ";
     }
+    cout << endl;
 
     uint16_t * h_children = new uint16_t[BOARD_SIZE*BOARD_SIZE];
     uint h_children_len = 0;
@@ -43,28 +50,48 @@ Action MCTS::run(Logger& logger){
 
     cudaMemcpy(d_path, path_buffer, path_len*sizeof(uint16_t), cudaMemcpyHostToDevice);
 
-    while(step < MAX_EXPAND_STEP){
+    // while(step < MAX_EXPAND_STEP){
 
         dim3 DimGrid(1, 1, 1);
         dim3 DimBlock(BOARD_SIZE, BOARD_SIZE, 1);
-
-        traverse_kernel<<<DimGrid, DimBlock>>>(d_path, path_len, d_children, d_children_len, d_score, d_n);
+        
+        traverse_kernel<<<DimGrid, DimBlock>>>(d_path, path_len, d_children, d_children_len, d_score, d_n, d_board);
+        cudaError_t err = cudaGetLastError();
+        cout << cudaGetErrorString(err) << endl;
 
         step += 1;
-    }
+    // }
 
     cudaMemcpy(&h_children_len, d_children_len, sizeof(uint), cudaMemcpyDeviceToHost);
     cudaMemcpy(h_children, d_children, h_children_len*sizeof(uint16_t), cudaMemcpyDeviceToHost);
     cudaMemcpy(h_score, d_score, h_children_len*sizeof(int), cudaMemcpyDeviceToHost);
     cudaMemcpy(h_n, d_n, h_children_len*sizeof(int), cudaMemcpyDeviceToHost);
 
+    cudaMemcpy(h_board, d_board, BOARD_SIZE*BOARD_SIZE*sizeof(uint8_t), cudaMemcpyDeviceToHost);
+    for (int i = 0; i < BOARD_SIZE; ++i) {
+        for (int j = 0; j < BOARD_SIZE; ++j) {
+            if (h_board[i*BOARD_SIZE+j] == 1){
+                cout << "o ";
+            } else if (h_board[i*BOARD_SIZE+j] == 2){
+                cout << "x ";
+            } else {
+                cout << "- ";
+            }
+        }
+        cout << endl;
+    }
+
     cout << "h_children_len: " << h_children_len << endl;
+    for (int i = 0; i < h_children_len; ++i) {
+        cout << (h_children[i] & 0xFF) << "," << ((h_children[i] >> 8) & 0xFF) << "  ";
+    }
+    cout << endl;
 
     Action bestMove(0,0);
     double maxv = 0;
     int best_i = 0;
     for(int i = 0; i < h_children_len; ++i){
-        double v = h_score[i] / (h_n[i] + EPSILON);
+        double v = (double)h_score[i] / ((double)h_n[i] + EPSILON);
         if(v >= maxv){
             maxv = v;
             best_i = i;
@@ -83,6 +110,9 @@ Action MCTS::run(Logger& logger){
     cudaFree(d_children_len);
     cudaFree(d_score);
     cudaFree(d_n);
+
+    delete[] h_board;
+    cudaFree(d_board);
 
     // get time
     uint64_t diff;
