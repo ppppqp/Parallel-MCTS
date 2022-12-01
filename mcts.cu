@@ -1,4 +1,4 @@
-#include "mcts.h"
+#include "mcts.cuh"
 #include "game.h"
 #include "timer.h"
 #include <stack>
@@ -13,6 +13,7 @@ using namespace std;
 #define D_BLACK 2
 
 const bool MULTITHREAD = true;
+const int nStreams = 10;
 // act:
 //  15:8 = x
 //   7:0 = y
@@ -372,24 +373,32 @@ Action MCTS::run(Logger& logger){
 
     Timer timer;
     timer.start();
+    // create cuda streams
+    cudaStream_t streams[nStreams];
+    for (int i = 0; i < nStreams; i ++){
+        cudaStreamCreate(&streams[i]);
+    }
+
     while(step < MAX_EXPAND_STEP){
         if(MULTITHREAD){
-            thread t(&MCTS::traverse, this, std::ref(root), std::ref(init_path), std::ref(b), step);
+            thread t(&MCTS::traverse, this, std::ref(root), std::ref(init_path), std::ref(b), step, std::ref(streams[step%nStreams]));
             vt.push_back(move(t));
         } else{
-            traverse(root, init_path, b, step);
+            traverse(root, init_path, b, step, streams[0]);
         }
         step += 1;
     }
     timer.stop();
-    logger.log("before join:"+ to_string(timer.time()));
     if(MULTITHREAD){
         for(thread& t : vt){
             if(t.joinable()) t.join();
         }
     }
     timer.stop();
-    logger.log("out of while loop:"+ to_string(timer.time()));
+    //delete cuda stream
+    for (int i = 0; i < nStreams; i ++){
+        cudaStreamDestroy(streams[i]);
+    }
     Action bestMove(0,0);
     double maxv = 0;
     for(auto child : root->children){
@@ -412,7 +421,7 @@ Action MCTS::run(Logger& logger){
 
 
 
-void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid){
+void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid, cudaStream_t& stream){
     stack<Node*> S;
     S.push(root);
     Timer timer;
@@ -462,12 +471,12 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid){
             }
 
 
-            cudaMemcpy( d_children, children_buffer, children_len*sizeof(uint16_t), cudaMemcpyHostToDevice);
-            cudaMemcpy( d_path, path_buffer, path_len*sizeof(uint16_t), cudaMemcpyHostToDevice);
+            cudaMemcpyAsync( d_children, children_buffer, children_len*sizeof(uint16_t), cudaMemcpyHostToDevice, stream);
+            cudaMemcpyAsync( d_path, path_buffer, path_len*sizeof(uint16_t), cudaMemcpyHostToDevice, stream);
 
             int* result_buffer = new int[2];
-            simulate_kernel<<<DimGrid, DimBlock>>>(d_path, path_len, d_children, children_len, d_result);
-            cudaMemcpy( result_buffer, d_result, 2*sizeof(int), cudaMemcpyDeviceToHost);
+            simulate_kernel<<<DimGrid, DimBlock, 0, stream>>>(d_path, path_len, d_children, children_len, d_result);
+            cudaMemcpyAsync( result_buffer, d_result, 2*sizeof(int), cudaMemcpyDeviceToHost, stream);
 
             BackPropObj obj;
             obj.wins = result_buffer[0];

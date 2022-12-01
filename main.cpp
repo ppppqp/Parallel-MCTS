@@ -1,4 +1,4 @@
-#include "mcts.h"
+#include "mcts.cuh"
 #include "game.h"
 #include <iostream>
 #include <algorithm>    

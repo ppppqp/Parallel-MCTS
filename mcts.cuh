@@ -12,6 +12,7 @@
 #include "game.h"
 #include "logger.h"
 #include <time.h>
+#include <cuda_runtime.h>
 #include <deque>
 
 const int MAX_SIM_STEP = 100;
@@ -65,7 +66,7 @@ public:
     void expand(Node* node);
     void backprop(Node* node, BackPropObj result);
     bool rollout(Board &b); // given a board and role, randomly simulate one step
-    void traverse(Node *root, vector<Action> &path, Board& board, int tid); // traverse the tree to find a node to simulate
+    void traverse(Node *root, vector<Action> &path, Board& board, int tid, cudaStream_t& stream); // traverse the tree to find a node to simulate
     bool checkAbort();
 };
 
