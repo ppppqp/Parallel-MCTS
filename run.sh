@@ -14,7 +14,7 @@
 module load cuda
 #make sure to compile your program using nvcc
 #nvcc -o example1 example1.cu
-nvprof --print-gpu-trace -f -o results.nvprof ./mcts_cuda
+# nvprof --print-gpu-trace -f -o results.nvprof ./mcts_cuda
 # nsys profile ./mcts_cuda
-#./mcts_cuda
+./mcts_cuda
 # ./mcts_cuda

@@ -4,3 +4,4 @@ mcts_cuda
 gpu.log
 cpu.log
 *.nvprof
+gpu_log*

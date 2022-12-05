@@ -6,6 +6,7 @@
 #include <curand_kernel.h>
 using namespace std;
 
+#define GPU_PERCENT 0.5
 
 Action MCTS::run(Logger& logger){
     logger.setGPU();
@@ -42,12 +43,19 @@ Action MCTS::run(Logger& logger){
 
     cudaMemcpy(d_path, path_buffer, path_len*sizeof(uint16_t), cudaMemcpyHostToDevice);
 
-    dim3 DimGrid(1, 1, MAX_EXPAND_STEP);
+    int GPU_work = (int)((double)MAX_EXPAND_STEP * GPU_PERCENT);
+    int CPU_work = MAX_EXPAND_STEP - GPU_work;
+
+    dim3 DimGrid(1, 1, GPU_work);
     dim3 DimBlock(BOARD_SIZE, BOARD_SIZE, 1);
         
     traverse_kernel<<<DimGrid, DimBlock>>>(d_path, path_len, d_children, d_children_len, d_score, d_n);
-    cudaError_t err = cudaGetLastError();
+    
+    for (int i = 0; i < CPU_work; ++i) {
+        traverse(root, init_path, b);
+    }
 
+    cudaDeviceSynchronize();
     cudaMemcpy(&h_children_len, d_children_len, sizeof(uint), cudaMemcpyDeviceToHost);
     cudaMemcpy(h_children, d_children, h_children_len*sizeof(uint16_t), cudaMemcpyDeviceToHost);
     cudaMemcpy(h_score, d_score, h_children_len*sizeof(int), cudaMemcpyDeviceToHost);
@@ -96,11 +104,8 @@ Action MCTS::run(Logger& logger){
 
 void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
     stack<Node*> S;
-    
     S.push(root);
     int iter_step = 0;
-    dim3 DimGrid(1, 1, 1);
-    dim3 DimBlock(BOARD_SIZE, BOARD_SIZE, 1);
     while(!S.empty()){
         // cout << iter_step << endl;
         iter_step++;
@@ -108,11 +113,10 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
         
         S.pop();
         // Node *child = nullptr;
-
         if(!node->expandable){
             if(node->children.empty()){
                 // this is an terminal state
-                backprop(node, BackPropObj(simulate(node)));
+                backprop(node, simulate(node));
             } else{
                 S.push(select(node));
             }
@@ -120,48 +124,11 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
             node->expandable = false;
             expand(node);
 
-            uint16_t * d_path;
-            int path_len = node->path.size();
-            uint16_t * d_children;
-            int children_len = node->children.size();
-            int *d_result;
-            cudaMalloc(&d_path, path_len*sizeof(uint16_t));
-            cudaMalloc(&d_children, children_len*sizeof(uint16_t));
-            cudaMalloc(&d_result, 2 * sizeof(int));
-            
-            uint16_t* children_buffer = new uint16_t[children_len];
-            for(int i = 0; i < children_len; i++){
-                Action a = node->children[i]->path.back();
-                children_buffer[i] = (a.x << 8) + a.y;
+            for(auto child : node->children){
+                backprop(node, simulate(child));
             }
-
-
-            uint16_t* path_buffer = new uint16_t[path_len];
-            for(int i = 0; i < path_len; i++){
-                Action a = node->path[i];
-                path_buffer[i] = (a.x << 8) + a.y;
-            }
-
-
-            cudaMemcpy( d_children, children_buffer, children_len*sizeof(uint16_t), cudaMemcpyHostToDevice);
-            cudaMemcpy( d_path, path_buffer, path_len*sizeof(uint16_t), cudaMemcpyHostToDevice);
-
-            int* result_buffer = new int[2];
-            simulate_kernel<<<DimGrid, DimBlock>>>(d_path, path_len, d_children, children_len, d_result);
-            cudaMemcpy( result_buffer, d_result, 2*sizeof(int), cudaMemcpyDeviceToHost);
-
-            BackPropObj obj;
-            obj.wins = result_buffer[0];
-            obj.sims = result_buffer[1];
-            backprop(node, obj);
-            
-            cudaFree(d_path);
-            cudaFree(d_children);
-            cudaFree(d_result);
-            delete[] children_buffer;
-            delete[] path_buffer;
-            delete[] result_buffer;
         }
+        // if(checkAbort()) return;
     }
 }
 
