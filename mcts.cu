@@ -13,7 +13,7 @@ using namespace std;
 #define D_WHITE 1
 #define D_BLACK 2
 
-const bool MULTITHREAD = false;
+const bool MULTITHREAD = true;
 const int nStreams = 10;
 // act:
 //  15:8 = x
@@ -363,7 +363,13 @@ __global__ void simulate_kernel(uint16_t *path, int path_len,
 Action MCTS::run(Logger& logger){
     logger.setGPU();
     Board b;    // NOTE: duplicate of the board in main. Can we remove it?
+    cudaStream_t streams[nStreams];
+    for (int i = 0; i < nStreams; i ++){
+        cudaStreamCreate(&streams[i]);
+    }
 
+    Timer timer;
+    timer.start();
     for(auto action:init_path){
         // initialize the board with history actions
         b.update(action);
@@ -371,13 +377,8 @@ Action MCTS::run(Logger& logger){
     int step = 0;
     vector<thread> vt;
 
-    Timer timer;
-    timer.start();
+
     // create cuda streams
-    cudaStream_t streams[nStreams];
-    for (int i = 0; i < nStreams; i ++){
-        cudaStreamCreate(&streams[i]);
-    }
 
     while(step < MAX_EXPAND_STEP){
         if(MULTITHREAD){
@@ -395,9 +396,6 @@ Action MCTS::run(Logger& logger){
     }
 
     //delete cuda stream
-    for (int i = 0; i < nStreams; i ++){
-        cudaStreamDestroy(streams[i]);
-    }
     Action bestMove(0,0);
     double maxv = 0;
     for(auto child : root->children){
@@ -412,7 +410,9 @@ Action MCTS::run(Logger& logger){
     timer.stop();
     logger.log(to_string(timer.time()));
     logger.record_time(timer.time());
-
+    for (int i = 0; i < nStreams; i ++){
+        cudaStreamDestroy(streams[i]);
+    }
     return bestMove;
 }
 

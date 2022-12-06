@@ -15,13 +15,13 @@ public:
     }
     uint64_t time(){
         uint64_t diff = BILLION * (end_time.tv_sec - start_time.tv_sec) + end_time.tv_nsec - start_time.tv_nsec;
-        return diff/(MILLION/1000);
+        return diff/(MILLION);
     }
     uint64_t get_start(){
         return start_time.tv_sec * BILLION + start_time.tv_nsec;
     }
     uint64_t get_end(){
-        return (end_time.tv_sec * BILLION + end_time.tv_nsec)/(MILLION/1000);
+        return (end_time.tv_sec * BILLION + end_time.tv_nsec)/(MILLION);
     }
 };
 #endif
