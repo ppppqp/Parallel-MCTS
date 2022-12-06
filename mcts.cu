@@ -13,7 +13,7 @@ using namespace std;
 #define D_WHITE 1
 #define D_BLACK 2
 
-const bool MULTITHREAD = true;
+const bool MULTITHREAD = false;
 const int nStreams = 10;
 // act:
 //  15:8 = x
@@ -425,8 +425,8 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid, cudaStr
     Timer timer;
     timer.start();
     int iter_step = 0;
-    dim3 DimGrid(BOARD_SIZE, BOARD_SIZE, SIM_TIMES);
-    dim3 DimBlock(1, 1, 1);
+    dim3 DimGrid(1, 1, SIM_TIMES);
+    dim3 DimBlock(BOARD_SIZE, BOARD_SIZE, 1);
     while(!S.empty()){
         // cout << iter_step << endl;
         iter_step++;
