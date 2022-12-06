@@ -16,7 +16,7 @@
 #include <deque>
 #include <mutex>
 const int MAX_SIM_STEP = 100;
-const int MAX_EXPAND_STEP = 2;
+const int MAX_EXPAND_STEP = 100;
 const int MAX_TIME = 1000; // each step takes 1 second
 const int SPECULATE_NUM = 2;
 using namespace std;
