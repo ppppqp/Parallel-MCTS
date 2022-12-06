@@ -80,8 +80,10 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
             expand(node);
             BackPropObj bp;
             for(auto child : node->children){   // NOTE: can be parallelized
-                Result r = simulate(child);
-                bp.add(r);
+                for(int i = 0; i < SIM_TIMES; i++){
+                    Result r = simulate(child);
+                    bp.add(r);
+                }
             }
             backprop(node, bp);
         }
