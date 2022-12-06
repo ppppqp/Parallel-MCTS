@@ -398,8 +398,8 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
     stack<Node*> S;
     S.push(root);
     int iter_step = 0;
-    dim3 DimGrid(BOARD_SIZE, BOARD_SIZE, SIM_TIMES);
-    dim3 DimBlock(1, 1, 1);
+    dim3 DimGrid(1, 1, SIM_TIMES);
+    dim3 DimBlock(BOARD_SIZE, BOARD_SIZE, 1);
     while(!S.empty()){
         // cout << iter_step << endl;
         iter_step++;
