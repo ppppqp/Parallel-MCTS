@@ -6,8 +6,6 @@
 #include <curand_kernel.h>
 using namespace std;
 
-#define GPU_PERCENT 0.5
-
 Action MCTS::run(Logger& logger){
     logger.setGPU();
     clock_gettime(CLOCK_REALTIME, &start);
@@ -46,7 +44,7 @@ Action MCTS::run(Logger& logger){
     int GPU_work = (int)((double)MAX_EXPAND_STEP * GPU_PERCENT);
     int CPU_work = MAX_EXPAND_STEP - GPU_work;
 
-    dim3 DimGrid(1, 1, GPU_work);
+    dim3 DimGrid(SIM_TIMES, 1, GPU_work);
     dim3 DimBlock(BOARD_SIZE, BOARD_SIZE, 1);
         
     traverse_kernel<<<DimGrid, DimBlock>>>(d_path, path_len, d_children, d_children_len, d_score, d_n);
@@ -125,7 +123,9 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
             expand(node);
 
             for(auto child : node->children){
-                backprop(node, simulate(child));
+                for (int i = 0; i < SIM_TIMES; ++i) {
+                    backprop(node, simulate(child));
+                }
             }
         }
         // if(checkAbort()) return;

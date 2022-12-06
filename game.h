@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 #include <set>
-const int BOARD_SIZE = 9;
+const int BOARD_SIZE = 10;
 using namespace std;
 enum class ROLE{
     BLACK,

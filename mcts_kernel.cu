@@ -11,18 +11,16 @@ using namespace std;
 #define D_BLACK 2
 
 __device__ void board_initialize(uint16_t *path, int path_len, uint8_t *s_board, ROLE* current_role){
-    for (int s_y = 0; threadIdx.y + s_y < BOARD_SIZE; s_y += blockDim.y) {
-        for (int s_x = 0; threadIdx.x + s_x < BOARD_SIZE; s_x += blockDim.x) {
-            int tsy = threadIdx.y + s_y;
-            int tsx = threadIdx.x + s_x;
-            s_board[tsy * BOARD_SIZE + tsx] = D_NONE;
-            if ((threadIdx.y + s_y == BOARD_SIZE/2-1 && threadIdx.x + s_x == BOARD_SIZE/2-1) || 
-                (threadIdx.y + s_y == BOARD_SIZE/2 && threadIdx.x + s_x == BOARD_SIZE/2))
-                s_board[tsy * BOARD_SIZE + tsx] = D_BLACK;
-            if ((threadIdx.y + s_y == BOARD_SIZE/2-1 && threadIdx.x + s_x == BOARD_SIZE/2) || 
-                (threadIdx.y + s_y == BOARD_SIZE/2 && threadIdx.x + s_x == BOARD_SIZE/2-1))
-                s_board[tsy * BOARD_SIZE + tsx] = D_WHITE;
-        }
+    if (threadIdx.y < BOARD_SIZE && threadIdx.x < BOARD_SIZE) {
+        int tsy = threadIdx.y;
+        int tsx = threadIdx.x;
+        s_board[tsy * BOARD_SIZE + tsx] = D_NONE;
+        if ((threadIdx.y == BOARD_SIZE/2-1 && threadIdx.x == BOARD_SIZE/2-1) || 
+            (threadIdx.y == BOARD_SIZE/2 && threadIdx.x == BOARD_SIZE/2))
+            s_board[tsy * BOARD_SIZE + tsx] = D_BLACK;
+        if ((threadIdx.y == BOARD_SIZE/2-1 && threadIdx.x == BOARD_SIZE/2) || 
+            (threadIdx.y == BOARD_SIZE/2 && threadIdx.x == BOARD_SIZE/2-1))
+            s_board[tsy * BOARD_SIZE + tsx] = D_WHITE;
     }
 
     __syncthreads();
