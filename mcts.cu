@@ -13,7 +13,7 @@ using namespace std;
 #define D_WHITE 1
 #define D_BLACK 2
 
-const bool MULTITHREAD = false;
+const bool MULTITHREAD = true;
 const int nStreams = 10;
 // act:
 //  15:8 = x
@@ -385,7 +385,7 @@ Action MCTS::run(Logger& logger){
             thread t(&MCTS::traverse, this, std::ref(root), std::ref(init_path), std::ref(b), step, std::ref(streams[step%nStreams]));
             vt.push_back(move(t));
         } else{
-            traverse(root, init_path, b, step, streams[0]);
+            traverse(root, init_path, b, step, streams[step%nStreams]);
         }
         step += 1;
     }
@@ -425,7 +425,7 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid, cudaStr
     Timer timer;
     timer.start();
     int iter_step = 0;
-    dim3 DimGrid(BOARD_SIZE, BOARD_SIZE, 1);
+    dim3 DimGrid(BOARD_SIZE, BOARD_SIZE, SIM_TIMES);
     dim3 DimBlock(1, 1, 1);
     while(!S.empty()){
         // cout << iter_step << endl;

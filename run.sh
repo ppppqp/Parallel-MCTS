@@ -4,6 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
 #SBATCH --time=00:05:00
+#SBATCH --account=eecs587f22_class
 #SBATCH --partition=gpu
 
 
