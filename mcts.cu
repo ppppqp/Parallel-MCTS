@@ -13,7 +13,7 @@ using namespace std;
 #define D_WHITE 1
 #define D_BLACK 2
 
-const bool MULTITHREAD = true;
+const bool MULTITHREAD = false;
 const int nStreams = 10;
 // act:
 //  15:8 = x
@@ -362,7 +362,6 @@ __global__ void simulate_kernel(uint16_t *path, int path_len,
 
 Action MCTS::run(Logger& logger){
     logger.setGPU();
-    clock_gettime(CLOCK_REALTIME, &start);
     Board b;    // NOTE: duplicate of the board in main. Can we remove it?
 
     for(auto action:init_path){
@@ -389,13 +388,12 @@ Action MCTS::run(Logger& logger){
         }
         step += 1;
     }
-    timer.stop();
     if(MULTITHREAD){
         for(thread& t : vt){
             if(t.joinable()) t.join();
         }
     }
-    timer.stop();
+
     //delete cuda stream
     for (int i = 0; i < nStreams; i ++){
         cudaStreamDestroy(streams[i]);
@@ -411,11 +409,9 @@ Action MCTS::run(Logger& logger){
     }
     // get the best move and return
     // get time
-    uint64_t diff;
-    clock_gettime(CLOCK_REALTIME, &end);
-    diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
-    logger.log("time used:" + to_string(diff/(MILLION/1000)));
-    logger.record_time(diff/(MILLION/1000));
+    timer.stop();
+    logger.log(to_string(timer.time()));
+    logger.record_time(timer.time());
 
     return bestMove;
 }
@@ -501,7 +497,6 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid, cudaStr
         }
     }
     timer.stop();
-    cout << "tid:" << tid << " time:" << timer.get_end() << endl;
 }
 
 deque<Node*> MCTS::select(Node* node){
