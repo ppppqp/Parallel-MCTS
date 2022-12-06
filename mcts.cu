@@ -13,7 +13,7 @@ using namespace std;
 #define D_WHITE 1
 #define D_BLACK 2
 
-const bool MULTITHREAD = true;
+const bool MULTITHREAD = false;
 const int nStreams = 10;
 // act:
 //  15:8 = x
@@ -394,7 +394,7 @@ Action MCTS::run(Logger& logger){
             if(t.joinable()) t.join();
         }
     }
-
+    cudaDeviceSynchronize();
     //delete cuda stream
     Action bestMove(0,0);
     double maxv = 0;
@@ -413,6 +413,7 @@ Action MCTS::run(Logger& logger){
     for (int i = 0; i < nStreams; i ++){
         cudaStreamDestroy(streams[i]);
     }
+
     return bestMove;
 }
 
