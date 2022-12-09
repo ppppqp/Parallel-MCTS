@@ -130,7 +130,7 @@ __device__ void expand_device(uint8_t *s_board, ROLE *role, uint16_t *children, 
 __device__ void backprop_device(int *score, int *n, int level, int new_score, int new_n){
     int tid = blockDim.x * threadIdx.y + threadIdx.x;
     if (tid < level) {
-        bool shouldUpdate = (level - tid) % 2 == 0 ? true : false;
+        bool shouldUpdate = (level - tid) % 2 != 0 ? true : false;
         if (shouldUpdate) {
             score[tid] += new_score;
         }
@@ -441,7 +441,7 @@ __device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROL
 
 
 
-__device__ Result get_result(uint8_t *s_board){
+__device__ Result get_result(uint8_t *s_board, ROLE role){
     int count = 0;
     for(int i = 0; i < BOARD_SIZE; i++){
         for(int j = 0; j < BOARD_SIZE; j++){
@@ -449,9 +449,9 @@ __device__ Result get_result(uint8_t *s_board){
             if(s_board[i*BOARD_SIZE+j] == D_WHITE) count --;
         }
     }
-    if(count > 0) return Result::WIN;
+    if(count > 0 && role == ROLE::BLACK || count < 0 && role == ROLE::WHITE) return Result::WIN;
     if(count == 0) return Result::DRAW;
-    if(count < 0) return Result::LOSE;
+    if(count < 0 && role == ROLE::BLACK || count > 0 && role == ROLE::BLACK) return Result::LOSE;
     return Result::DRAW;
 }
 
@@ -496,7 +496,7 @@ __device__ void simulate_device(uint8_t *s_board, ROLE *current_role, uint16_t *
                 update_board(p_board, rand_x, rand_y, &p_role);
             } else {    // game finishes
                 // TODO: get result
-                Result r = get_result(s_board);
+                Result r = get_result(s_board, *current_role);
                 if(r == Result::WIN) s_win[child_y * BOARD_SIZE + child_x] ++;
                 s_sim[child_y * BOARD_SIZE + child_x] ++;
             }
