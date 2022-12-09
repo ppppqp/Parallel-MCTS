@@ -114,7 +114,6 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
         if(!node->expandable){
             if(node->children.empty()){
                 // this is an terminal state
-                backprop(node, simulate(node));
             } else{
                 S.push(select(node));
             }
@@ -124,7 +123,7 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
 
             for(auto child : node->children){
                 for (int i = 0; i < SIM_TIMES; ++i) {
-                    backprop(node, simulate(child));
+                    backprop(child, simulate(child));
                 }
             }
         }
@@ -133,21 +132,20 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
 }
 
 Node* MCTS::select(Node* node){
-    // cout << "enter select" << endl;
     double maxn = -1;
     Node* child = nullptr;   
     for(auto c : node->children){
-        // cout << c << endl;
-        double UCB = c->UCB;
+        double UCB = c->score/(c->n + EPSILON) + 2 * sqrt(log(node->n+EPSILON)/(c->n + EPSILON));
+        // cout << "child: " << c << " UCB: " << UCB << " first part:" << c->score/(c->n + EPSILON) << " second part:" << 2 * sqrt(log(node->n+EPSILON)/(c->n + EPSILON)) <<  endl;
         if(UCB > maxn){
             child = c;
             maxn = UCB;
         }
     }
-    // cout << child << endl;
-    // cout << "exit select" << endl;
+    // cout << "select " << child << " of " << node << " with UCB " << maxn << endl;
     return child;
 }
+
 
 void MCTS::expand(Node * node){
     Board b;
@@ -163,7 +161,7 @@ void MCTS::expand(Node * node){
 
 void MCTS::backprop(Node *node, BackPropObj result){
         // cout << "enter backprop" << endl;
-    bool shouldUpdate = false;
+    bool shouldUpdate = true;
     while(node->parent){
         node = node->parent;
         if(shouldUpdate) node->score += result.wins;
@@ -172,19 +170,17 @@ void MCTS::backprop(Node *node, BackPropObj result){
     }
 }
 
-
 Result MCTS::simulate(Node *root){
     Board b;
-    // cout << "enter simulate" << endl;
-
     for(auto action:root->path){
         b.update(action);
     }
+    ROLE role = b.current_role;
     int step = 0;
     while(step < MAX_SIM_STEP){
         step++;
         if(!rollout(b)){
-            return b.get_result();
+            return b.get_result(role);
         }
     }
     return Result::DRAW;
@@ -192,7 +188,6 @@ Result MCTS::simulate(Node *root){
 bool MCTS::rollout(Board &b){
     vector<Action> actions = b.get_actions();
     if(actions.empty()) return false;
-    shuffle(actions.begin(), actions.end(), std::default_random_engine(42));
-    b.update(actions[0]);
+    b.update(actions[rand()%actions.size()]);
     return true;
 }
