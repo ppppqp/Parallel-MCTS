@@ -429,7 +429,7 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid, cudaStr
             if(node->children.empty()){
                 // this is an terminal state
             } else{
-                S.push(select(node)[0]);
+                S.push(select(node));
             }
         } else{
             node_lock.lock();
