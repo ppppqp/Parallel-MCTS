@@ -38,6 +38,7 @@ Action MCTS::run(Logger& logger){
     double maxv = 0;
     for(auto child : root->children){
         double v = child->score / (child->n + EPSILON);
+        // cout << "node:" << child << " move:" << child->path.back().y <<  child->path.back().x  << " times:" << child->n << " value:" << v << endl;
         if(v >= maxv){
             maxv = v;
             bestMove = child->path.back();
@@ -71,9 +72,10 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
         if(!node->expandable){
             if(node->children.empty()){
                 // this is an terminal state
-                backprop(node, BackPropObj(simulate(node)));
+                // backprop(node, BackPropObj(simulate(node)));
             } else{
-                S.push(select(node));
+                Node* next = select(node);
+                S.push(next);
             }
         } else{
             node->expandable = false;
@@ -84,27 +86,27 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b){
                     Result r = simulate(child);
                     bp.add(r);
                 }
+                backprop(child, bp);
             }
-            backprop(node, bp);
+            // cout << "role: " << "updated node:" << node << " with wins:" << bp.wins << "and sims:" << bp.sims << endl;
+            
         }
         if(checkAbort()) return;
     }
 }
 
 Node* MCTS::select(Node* node){
-    // cout << "enter select" << endl;
     double maxn = -1;
     Node* child = nullptr;   
     for(auto c : node->children){
-        // cout << c << endl;
-        double UCB = c->UCB;
+        double UCB = c->score/(c->n + EPSILON) + 2 * sqrt(log(node->n+EPSILON)/(c->n + EPSILON));
+        // cout << "child: " << c << " UCB: " << UCB << " first part:" << c->score/(c->n + EPSILON) << " second part:" << 2 * sqrt(log(node->n+EPSILON)/(c->n + EPSILON)) <<  endl;
         if(UCB > maxn){
             child = c;
             maxn = UCB;
         }
     }
-    // cout << child << endl;
-    // cout << "exit select" << endl;
+    // cout << "select " << child << " of " << node << " with UCB " << maxn << endl;
     return child;
 }
 
@@ -112,16 +114,14 @@ void MCTS::expand(Node * node){
     Board b;
     b.batch_update(node->path);
     vector<Action> actions = b.get_actions();
-    // cout << "action size" << actions.size() << endl;
     for(auto action : actions){
-        // cout << action.y << action.x << endl;
         node->add_child(new Node(node->path, action));
     }
 }
 
 void MCTS::backprop(Node *node, BackPropObj result){
         // cout << "enter backprop" << endl;
-    bool shouldUpdate = false;
+    bool shouldUpdate = true;
     while(node->parent){
         node = node->parent;
         if(shouldUpdate) node->score += result.wins;
@@ -137,11 +137,12 @@ Result MCTS::simulate(Node *root){
     for(auto action:root->path){
         b.update(action);
     }
+    ROLE role = b.current_role;
     int step = 0;
     while(step < MAX_SIM_STEP){
         step++;
         if(!rollout(b)){
-            return b.get_result();
+            return b.get_result(role);
         }
         if(checkAbort()) return Result::DRAW;
     }
@@ -150,7 +151,6 @@ Result MCTS::simulate(Node *root){
 bool MCTS::rollout(Board &b){
     vector<Action> actions = b.get_actions();
     if(actions.empty()) return false;
-    shuffle(actions.begin(), actions.end(), std::default_random_engine(42));
-    b.update(actions[0]);
+    b.update(actions[rand()%actions.size()]);
     return true;
 }

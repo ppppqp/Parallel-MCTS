@@ -14,8 +14,8 @@
 #include <time.h>
 
 const int MAX_SIM_STEP = 100;
-const int SIM_TIMES = 10;
-const int MAX_EXPAND_STEP = 10;
+const int SIM_TIMES = 20;
+const int MAX_EXPAND_STEP = 70;
 const int MILLION = 1000000;
 const long long BILLION = 1000000000;
 const int MAX_TIME = 1000; // each step takes 1 second
