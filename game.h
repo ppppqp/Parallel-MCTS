@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 #include <set>
-const int BOARD_SIZE = 10;
+const int BOARD_SIZE = 8;
 using namespace std;
 enum class ROLE{
     BLACK,
@@ -271,7 +271,7 @@ public:
 
         return vector<Action>(sa.begin(), sa.end());
     }; // TODO
-    Result get_result(){
+    Result get_result(ROLE role){
         int count = 0;
         for(int i = 0; i < BOARD_SIZE; i++){
             for(int j = 0; j < BOARD_SIZE; j++){
@@ -279,14 +279,14 @@ public:
                 if(s[i][j] == State::WHITE) count --;
             }
         }
-        if(count > 0) return Result::WIN;
+        if(count > 0 && role == ROLE::BLACK || count < 0 && role == ROLE::WHITE) return Result::WIN;
         if(count == 0) return Result::DRAW;
-        if(count < 0) return Result::LOSE;
+        if(count < 0 && role == ROLE::BLACK || count > 0 && role == ROLE::BLACK) return Result::LOSE;
         return Result::DRAW;
     }  // TODO
     bool check_end(){
         if(get_actions().empty()){
-            Result r = get_result();
+            Result r = get_result(ROLE::BLACK);
             if(r == Result::WIN) cout << "YOU LOSE!" << endl;
             if(r == Result::LOSE) cout << "YOU WIN!" << endl;
             if(r == Result::DRAW) cout << "DRAW!" << endl;

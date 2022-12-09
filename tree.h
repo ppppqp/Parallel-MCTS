@@ -35,6 +35,7 @@ public:
         path.push_back(action);
     }
     Node(vector<Action> _path):score(0), UCB(0), n(0), parent(nullptr), path(_path), expandable(true){
+        update_UCB();
     }
     ~Node(){
         for(auto child:children){

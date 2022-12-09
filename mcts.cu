@@ -241,7 +241,7 @@ __device__ void update_board(uint8_t *s_board, uint8_t act_x, uint8_t act_y, ROL
 
 
 
-__device__ Result get_result(uint8_t *s_board){
+__device__ Result get_result(uint8_t *s_board, ROLE role){
     int count = 0;
     for(int i = 0; i < BOARD_SIZE; i++){
         for(int j = 0; j < BOARD_SIZE; j++){
@@ -249,9 +249,9 @@ __device__ Result get_result(uint8_t *s_board){
             if(s_board[i*BOARD_SIZE+j] == D_WHITE) count --;
         }
     }
-    if(count > 0) return Result::WIN;
+    if(count > 0 && role == ROLE::BLACK || count < 0 && role == ROLE::WHITE) return Result::WIN;
     if(count == 0) return Result::DRAW;
-    if(count < 0) return Result::LOSE;
+    if(count < 0 && role == ROLE::BLACK || count > 0 && role == ROLE::BLACK) return Result::LOSE;
     return Result::DRAW;
 }
 // Every thread calculates one child
@@ -268,9 +268,7 @@ __global__ void simulate_kernel(uint16_t *path, int path_len,
     int col = blockDim.x * blockIdx.x + threadIdx.x;
     int tid = blockDim.x * threadIdx.y + threadIdx.x;
 
-    // shared memory to update the total wins on the path
-    __shared__ int s_win[BOARD_SIZE * BOARD_SIZE];
-    __shared__ int s_sim[BOARD_SIZE * BOARD_SIZE];
+
     // for (int s = 0; tid + s < BOARD_SIZE * BOARD_SIZE; s += blockDim.x * blockDim.y) {
     //     s_win[tid + s] = 0;
     // }
@@ -338,24 +336,15 @@ __global__ void simulate_kernel(uint16_t *path, int path_len,
                 update_board(p_board, rand_x, rand_y, &p_role);
             } else {    // game finishes
                 // TODO: get result
-                Result r = get_result(s_board);
-                if(r == Result::WIN) s_win[child_y * BOARD_SIZE + child_x] ++;
-                s_sim[child_y * BOARD_SIZE + child_x] ++;
+                Result r = get_result(s_board, current_role);
+                if(r == Result::WIN) result[tid*2]++;
+                result[tid*2+1] ++;
+                break;
             }
         }
     }
     __syncthreads();
-    // reduce
-    if (threadIdx.x == 0 && threadIdx.y == 0) {
-        result[0] = 0;
-        result[1] = 0;
-        for(int i = 0; i < BOARD_SIZE; i++){
-            for(int j = 0; j < BOARD_SIZE; j++){
-                result[0] += s_win[i*BOARD_SIZE + j];
-                result[1] += s_sim[i*BOARD_SIZE + j];
-            }
-        }
-    }
+
 
 }
 
@@ -400,6 +389,7 @@ Action MCTS::run(Logger& logger){
     double maxv = 0;
     for(auto child : root->children){
         double v = child->score / (child->n + EPSILON);
+        cout << "value:" << v << endl;
         if(v >= maxv){
             maxv = v;
             bestMove = child->path.back();
@@ -438,9 +428,6 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid, cudaStr
         if(!node->expandable){
             if(node->children.empty()){
                 // this is an terminal state
-                node_lock.lock();
-                backprop(node, BackPropObj(simulate(node)));
-                node_lock.unlock();
             } else{
                 S.push(select(node)[0]);
             }
@@ -457,7 +444,7 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid, cudaStr
             int *d_result;
             cudaMalloc(&d_path, path_len*sizeof(uint16_t));
             cudaMalloc(&d_children, children_len*sizeof(uint16_t));
-            cudaMalloc(&d_result, 2 * sizeof(int));
+            cudaMalloc(&d_result, 2 * children_len * sizeof(int));
             
             uint16_t* children_buffer = new uint16_t[children_len];
             for(int i = 0; i < children_len; i++){
@@ -476,18 +463,17 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid, cudaStr
             cudaMemcpyAsync( d_children, children_buffer, children_len*sizeof(uint16_t), cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync( d_path, path_buffer, path_len*sizeof(uint16_t), cudaMemcpyHostToDevice, stream);
 
-            int* result_buffer = new int[2];
-            simulate_kernel<<<DimGrid, DimBlock, 0, stream>>>(d_path, path_len, d_children, children_len, d_result);
-            cudaMemcpyAsync( result_buffer, d_result, 2*sizeof(int), cudaMemcpyDeviceToHost, stream);
+            int* result_buffer = new int[2 * children_len];
+            simulate_kernel<<<DimGrid, DimBlock>>>(d_path, path_len, d_children, children_len, d_result);
+            cudaMemcpy( result_buffer, d_result, 2*children_len*sizeof(int), cudaMemcpyDeviceToHost);
 
-            BackPropObj obj;
-            obj.wins = result_buffer[0];
-            obj.sims = result_buffer[1];
-            
-            node_lock.lock();
-            backprop(node, obj);
-            node_lock.unlock();
 
+            for(int i = 0; i < node->children.size(); i++){
+                BackPropObj obj;
+                obj.wins = result_buffer[i*2];
+                obj.sims = result_buffer[i*2+1];
+                backprop(node->children[i], obj);
+            }
 
             cudaFree(d_path);
             cudaFree(d_children);
@@ -500,13 +486,14 @@ void MCTS::traverse(Node *root, vector<Action> &path, Board &b, int tid, cudaStr
     timer.stop();
 }
 
-deque<Node*> MCTS::select(Node* node){
+Node* MCTS::select(Node* node){
     double maxn = -1;
     Node* child = nullptr;
     deque<Node*> v(SPECULATE_NUM, nullptr);
     int vsize = 0;   
     for(auto c : node->children){
-        double UCB = c->UCB;
+        double UCB = c->score/(c->n + EPSILON) + 2 * sqrt(log(node->n+EPSILON)/(c->n + EPSILON));
+        // cout << "child: " << c << " UCB: " << UCB << " first part:" << c->score/(c->n + EPSILON) << " second part:" << 2 * sqrt(log(node->n+EPSILON)/(c->n + EPSILON)) <<  endl;
         if(UCB > maxn){
             child = c;
             maxn = UCB;
@@ -519,9 +506,10 @@ deque<Node*> MCTS::select(Node* node){
             }
         }
     }
-
-    return v;
+    // cout << "select " << child << " of " << node << " with UCB " << maxn << endl;
+    return child;
 }
+
 
 void MCTS::expand(Node * node){
     Board b;
@@ -537,7 +525,7 @@ void MCTS::expand(Node * node){
 
 void MCTS::backprop(Node *node, BackPropObj result){
         // cout << "enter backprop" << endl;
-    bool shouldUpdate = false;
+    bool shouldUpdate = true;
     while(node->parent){
         node = node->parent;
         if(shouldUpdate) node->score += result.wins;
@@ -546,19 +534,17 @@ void MCTS::backprop(Node *node, BackPropObj result){
     }
 }
 
-
 Result MCTS::simulate(Node *root){
     Board b;
-    // cout << "enter simulate" << endl;
-
     for(auto action:root->path){
         b.update(action);
     }
+    ROLE role = b.current_role;
     int step = 0;
     while(step < MAX_SIM_STEP){
         step++;
         if(!rollout(b)){
-            return b.get_result();
+            return b.get_result(role);
         }
     }
     return Result::DRAW;
@@ -566,7 +552,6 @@ Result MCTS::simulate(Node *root){
 bool MCTS::rollout(Board &b){
     vector<Action> actions = b.get_actions();
     if(actions.empty()) return false;
-    shuffle(actions.begin(), actions.end(), std::default_random_engine(42));
-    b.update(actions[0]);
+    b.update(actions[rand()%actions.size()]);
     return true;
 }
